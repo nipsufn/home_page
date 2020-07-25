@@ -3,11 +3,11 @@ from flask import Flask, render_template, request
 
 APP = Flask(__name__)
 
-@APP.route('/')
+@APP.route('/', methods=['GET', 'POST'])
 def index():
     APP.logger.error("%s", str(request.args))
-    if 'xmms2' in request.args:
-        if 'xmms2request' in request.args and request.args['xmms2request'] == 'on':
+    if 'xmms2' in request.form:
+        if 'xmms2request' in request.form and request.form.get('xmms2request') == 'on':
             subprocess.Popen('/usr/bin/xmms2 play', shell=True)
         else:
             subprocess.Popen('/usr/bin/xmms2 stop', shell=True)
