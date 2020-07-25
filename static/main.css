@@ -73,3 +73,28 @@ input:checked + .slider:before {
   border-radius: 50%;
 }
 
+
+
+
+/*
+ CSS for the main interaction
+*/
+.accordion > input[type="checkbox"] {
+  position: absolute;
+  left: -100vw;
+}
+
+.accordion .content {
+  overflow-y: hidden;
+  height: 0;
+  transition: height 0.3s ease;
+}
+
+.accordion > input[type="checkbox"]:checked ~ .content {
+  height: auto;
+  overflow: visible;
+}
+
+.accordion label {
+  display: block;
+}
