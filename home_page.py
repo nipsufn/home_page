@@ -6,7 +6,7 @@ APP = Flask(__name__)
 @APP.route('/', methods=['GET', 'POST'])
 def index():
     APP.logger.error("%s", str(request.args))
-    if 'xmms2' in request.form:
+    if 'xmms2url' in request.form:
         if 'xmms2request' in request.form and request.form.get('xmms2request') == 'on':
             subprocess.Popen('/usr/bin/xmms2 play', shell=True)
         else:
