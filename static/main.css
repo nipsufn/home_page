@@ -95,7 +95,7 @@ input:checked + .slider:before {
   overflow: visible;
 }
 
-.accordion label {
+.accordion > .handle > label {
   display: block;
 }
 
@@ -124,7 +124,7 @@ body {
   line-height: 1.2em;
 }
 
-.accordion label {
+.accordion > .handle > label {
   color: #333;
   cursor: pointer;
   font-weight: normal;
@@ -132,8 +132,8 @@ body {
   background: #e8e8e8;
 }
 
-.accordion label:hover,
-.accordion label:focus {
+.accordion > .handle >  label:hover,
+.accordion > .handle >  label:focus {
   background: #d8d8d8;
 }
 
