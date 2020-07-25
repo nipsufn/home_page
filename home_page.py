@@ -5,12 +5,15 @@ APP = Flask(__name__)
 
 @APP.route('/', methods=['GET', 'POST'])
 def index():
-    APP.logger.error("%s", str(request.args))
+    APP.logger.error("%s", str(request.form))
     if 'xmms2url' in request.form:
-        if 'xmms2request' in request.form and request.form.get('xmms2request') == 'on':
+        if 'xmms2request' in request.form and request.form['xmms2request'] == 'on':
+            subprocess.Popen('/usr/bin/xmms2 server volume 100', shell=True)
+            subprocess.Popen('/usr/bin/xmms2 add ' + request.form['xmms2url'], shell=True)
             subprocess.Popen('/usr/bin/xmms2 play', shell=True)
         else:
             subprocess.Popen('/usr/bin/xmms2 stop', shell=True)
+            subprocess.Popen('/usr/bin/xmms2 remove 1', shell=True)
     xmms2playing = subprocess.Popen('/usr/bin/xmms2 current | grep Playing', shell=True)
     xmms2playing.communicate()[0]
     xmms2playing = xmms2playing.returncode

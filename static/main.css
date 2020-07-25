@@ -18,6 +18,7 @@
   display: inline-block;
   width: 8.4ex;
   height: 5ex;
+  margin-bottom: 1ex;
 }
 
 /* Hide default HTML checkbox */
@@ -141,7 +142,7 @@ body {
 
 .accordion .handle label:before {
   font-family: 'fontawesome';
-  content: "\f054";
+  content: "\1433";
   display: inline-block;
   margin-right: 10px;
   font-size: .58em;
@@ -150,5 +151,23 @@ body {
 }
 
 .accordion > input[type="checkbox"]:checked ~ .handle label:before {
-  content: "\f078";
+  content: "\142F";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.text > input {
+  width: 50ex;
+  height: 5ex;
 }
