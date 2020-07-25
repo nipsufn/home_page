@@ -14,8 +14,13 @@ def index():
         else:
             subprocess.Popen('/usr/bin/xmms2 stop', shell=True)
             subprocess.Popen('/usr/bin/xmms2 remove 1', shell=True)
+    
     xmms2playing = subprocess.Popen('/usr/bin/xmms2 current | grep Playing', shell=True)
     xmms2playing.communicate()[0]
     xmms2playing = xmms2playing.returncode
+
+    xmms2volume = subprocess.Popen('xmms2 server volume | head -n1 | cut -d' ' -f3', shell=True)
+    xmms2volume = xmms2volume.communicate()[0]
+
     APP.logger.error("%s", str(xmms2playing))
-    return render_template("index.html.j2", xmms2playing=xmms2playing)
+    return render_template("index.html.j2", xmms2playing=xmms2playing, xmms2volume=xmms2volume)

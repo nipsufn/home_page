@@ -16,6 +16,10 @@
           <span class="slider round"></span>
         </label>
         <br />
+        <label class="rangecontainer">
+          <input type="range" min="1" max="100" value="{{ xmms2volume }}" class="range" />
+        </label>
+        <br />
         <label class="text">
           <input type="text" name="xmms2url" value="http://icecast4.play.cz/crojazz256.mp3" />
         </label>
@@ -27,7 +31,7 @@
         <label for="handle2">Alarm</label>
       </h2>
       <form method="POST" id="alarm" class="content">
-        <label>
+        <label class="text">
           <input type="text" name="cron" value="50 07 * * 1-5" />
         </label>
         <input type="hidden" name="alarm" />
