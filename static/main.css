@@ -1,14 +1,16 @@
-@media (min-width: 5cm) {
+@media (max-width: 960px) {
   body {
     font-size: 4ex;
   }
 }
 
+/*
 @media (min-width: 15cm) {
   body {
     font-size: 1ex;
   }
 }
+*/
 
 /* The switch - the box around the slider */
 .switch {
