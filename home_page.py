@@ -19,7 +19,7 @@ def index():
     xmms2playing.communicate()[0]
     xmms2playing = xmms2playing.returncode
 
-    xmms2volume = subprocess.Popen('xmms2 server volume | head -n1 | cut -d\' \' -f3', shell=True)
+    xmms2volume = subprocess.Popen('/usr/bin/xmms2 server volume | head -n1 | cut -d\' \' -f3', shell=True)
     xmms2volume = xmms2volume.communicate()[0]
 
     APP.logger.error("%s", str(xmms2playing))
