@@ -1,4 +1,6 @@
-PIL
+pillow
 requests
-inspect
-flask
+flask[async]
+APScheduler
+python-musicpd
+pywizlight

@@ -1,7 +1,9 @@
 {
-  "kelvinOffset": "273.15",
-  "forecastLocation": "Paris,fr",
-  "forecastToken": "AVerySecretOpenWeatherTokenABCDE",
-  "smogLocations": ["4111", "4112", "4113", "4114", "4115", "4116", "4117", "4118", "4119"],
-  "smogToken": "AnotherVerySecretOpenWeatherToke"
+  "LIGHTBULB_IP": "192.168.x.x",
+  "ALARMS": [
+    {
+      "minute": "51",
+      "hour": "11"
+    }
+  ]
 }
