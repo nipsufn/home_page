@@ -1,8 +1,8 @@
+"""Flask app scheduling/starting/stopping nightlight and radio"""
 import asyncio
 import json
-import subprocess
 import time
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, logging
 from flask_sqlalchemy import SQLAlchemy
 import musicpd
 from pywizlight import wizlight, PilotBuilder
@@ -10,40 +10,44 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 
 APP = Flask(__name__)
+APP.logger = logging.create_logger(APP)
 APP.config.from_json("config.json")
 APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
 DB = SQLAlchemy(APP)
 
 WAKEUP_INT = False
 
-sched = BackgroundScheduler(daemon=True)
-for alarm in APP.config['ALARMS']:
-    APP.logger.warn("Alarm scheduled: %s", json.dumps(alarm))
-    minute='45'
-    hour='07'
-    day='*'
-    month="*"
-    day_of_week="*"
-    if 'minute' in alarm:
-        minute=alarm['minute']
-    if 'hour' in alarm:
-        hour=alarm['hour']
-    if 'day' in alarm:
-        day=alarm['day']
-    if 'month' in alarm:
-        month=alarm['month']
-    if 'day_of_week' in alarm:
-        day_of_week=alarm['day_of_week']
+SCHED = BackgroundScheduler(daemon=True)
+def add_alarms():
+    """Initialize scheduler with alarms from config"""
+    for alarm in APP.config['ALARMS']:
+        APP.logger.warning("Alarm scheduled: %s", json.dumps(alarm))
+        minute='45'
+        hour='07'
+        day='*'
+        month="*"
+        day_of_week="*"
+        if 'minute' in alarm:
+            minute=alarm['minute']
+        if 'hour' in alarm:
+            hour=alarm['hour']
+        if 'day' in alarm:
+            day=alarm['day']
+        if 'month' in alarm:
+            month=alarm['month']
+        if 'day_of_week' in alarm:
+            day_of_week=alarm['day_of_week']
 
-    sched.add_job(
-        lambda: wakeup(),'cron', minute=minute, hour=hour, day=day,
-        month=month, day_of_week=day_of_week)
-sched.start()
-
+        SCHED.add_job(
+            lambda: wakeup(),'cron', # pylint: disable=unnecessary-lambda
+            minute=minute, hour=hour, day=day,
+            month=month, day_of_week=day_of_week)
+add_alarms()
+SCHED.start()
 
 @APP.route('/', methods=['GET', 'POST'])
 def index():
-    #subprocess.Popen('/usr/bin/xmms2 play', shell=True)
+    """Webpage with advanced controls"""
     mpd = musicpd.MPDClient()
     mpd.connect()
     if 'volume' in request.form:
@@ -53,6 +57,8 @@ def index():
 
 @APP.route('/api', methods=['GET', 'POST'])
 def api():
+    """Handle API calls"""
+    # pylint: disable-next=global-statement
     global WAKEUP_INT
     mpd = musicpd.MPDClient()
     mpd.connect()
@@ -90,10 +96,12 @@ def api():
             'brightness': lightbulb.state.get_brightness(),
             'temperature': lightbulb.state.get_colortemp()
         }
-    APP.logger.warn("StopFlag/api: %s", str(WAKEUP_INT))
+    APP.logger.warning("StopFlag/api: %s", str(WAKEUP_INT))
     return json.dumps(response, indent=2)
 
 def wakeup():
+    """Wakeup procedure"""
+    # pylint: disable-next=global-statement
     global WAKEUP_INT
     mpd = musicpd.MPDClient()
     mpd.connect()
@@ -111,16 +119,16 @@ def wakeup():
     mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
     mpd.play()
     for i in range(101):
-        APP.logger.warn("StopFlag/task: %s", str(WAKEUP_INT))
+        APP.logger.warning("StopFlag/task: %s", str(WAKEUP_INT))
         if WAKEUP_INT:
             mpd.setvol(old_volume)
             return
         volume=int((i*70)/100+30)
         mpd.setvol(volume)
-        APP.logger.warn("volume: %i", volume)
+        APP.logger.warning("volume: %i", volume)
         bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
         temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
-        APP.logger.warn("brightness: %i; temperature: %i", bright, temp)
+        APP.logger.warning("brightness: %i; temperature: %i", bright, temp)
         asyncio.run(
             lightbulb.turn_on(
                 PilotBuilder(
