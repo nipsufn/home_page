@@ -1,48 +1,51 @@
 <html>
   <head>
     <title>aspera</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
     <link rel="stylesheet" type="text/css" href="static/main.css" />
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  </head>
-  <body>
-    <section class="accordion">
-      <input type="checkbox" name="collapse1" id="handle1" checked />
-      <h2 class="handle">
-        <label for="handle1">Radio</label>
-      </h2>
-      <form method="POST" id="xmms2" class="content">
-        <label class="switch">
-          <input type="checkbox" name="xmms2request" value="on" {{ '' if xmms2playing else 'checked' }} />
-          <span class="slider round"></span>
-        </label>
-        <br />
-        <label class="rangecontainer">
-          <input type="range" name="xmms2volume" min="1" max="100" value="{{ xmms2volume }}" class="range" />
-        </label>
-        <br />
-        <label class="text">
-          <input type="text" name="xmms2url" value="http://icecast4.play.cz/crojazz256.mp3" />
-        </label>
-      </form>
-    </section>
-    <section class="accordion">
-      <input type="checkbox" name="collapse2" id="handle2" />
-      <h2 class="handle">
-        <label for="handle2">Alarm</label>
-      </h2>
-      <form method="POST" id="alarm" class="content">
-        <label class="text">
-          <input type="text" name="cron" value="50 07 * * 1-5" />
-        </label>
-        <input type="hidden" name="alarm" />
-      </form>
-    </section>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script>
-      const xmms2form = document.querySelector('#xmms2');
-      xmms2form.addEventListener("change", updateValue);
+      const volume = document.querySelector('#volume');
+      volume.addEventListener("change", updateValue);
       function updateValue(e) {
-        xmms2form.submit();
+        volume.submit();
       }
     </script>
+  </head>
+  <body>
+    <div class="mdl-layout mdl-js-layout mdl-layout--fixed-header">
+      <header class="mdl-layout__header">
+        <div class="mdl-layout__header-row">
+          <!-- Title -->
+          <span class="mdl-layout-title">aspera</span>
+        </div>
+        <!-- Tabs -->
+        <div class="mdl-layout__tab-bar mdl-js-ripple-effect">
+          <a href="#scroll-tab-1" class="mdl-layout__tab is-active">Audio</a>
+          <a href="#scroll-tab-2" class="mdl-layout__tab">Light</a>
+        </div>
+      </header>
+      <div class="mdl-layout__drawer">
+        <span class="mdl-layout-title">Menu</span>
+      </div>
+      <main class="mdl-layout__content">
+        <section class="mdl-layout__tab-panel is-active" id="scroll-tab-1">
+          <div class="page-content">
+            <!-- Your content goes here -->
+            Volume:
+            <form method="POST" id="volume">
+            <input class="mdl-slider mdl-js-slider" type="range" name="volume" min="0" max="100" value="{{ audioVolume }}" tabindex="0">
+            </form>
+          </div>
+        </section>
+        <section class="mdl-layout__tab-panel" id="scroll-tab-2">
+          <div class="page-content">
+            <!-- Your content goes here -->
+          </div>
+        </section>
+      </main>
+    </div>
   </body>
 </html>

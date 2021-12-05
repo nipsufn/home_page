@@ -1,6 +1,7 @@
 pillow
 requests
-flask[async]
+flask
+Flask-SQLAlchemy
 APScheduler
 python-musicpd
 pywizlight

@@ -3,6 +3,7 @@ import json
 import subprocess
 import time
 from flask import Flask, render_template, request
+from flask_sqlalchemy import SQLAlchemy
 import musicpd
 from pywizlight import wizlight, PilotBuilder
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -10,6 +11,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 APP = Flask(__name__)
 APP.config.from_json("config.json")
+APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+DB = SQLAlchemy(APP)
+
+WAKEUP_INT = False
 
 sched = BackgroundScheduler(daemon=True)
 for alarm in APP.config['ALARMS']:
@@ -34,18 +39,23 @@ for alarm in APP.config['ALARMS']:
         lambda: wakeup(),'cron', minute=minute, hour=hour, day=day,
         month=month, day_of_week=day_of_week)
 sched.start()
-WAKEUP_INT = False
+
 
 @APP.route('/', methods=['GET', 'POST'])
 def index():
-    subprocess.Popen('/usr/bin/xmms2 play', shell=True)
-    return render_template("index.html.j2", xmms2playing="xmms2playing", xmms2volume="xmms2volume")
+    #subprocess.Popen('/usr/bin/xmms2 play', shell=True)
+    mpd = musicpd.MPDClient()
+    mpd.connect()
+    if 'volume' in request.form:
+        mpd.setvol(request.form['volume'])
+    return render_template("index.html.j2",
+        audioVolume=mpd.status()['volume'])
 
 @APP.route('/api', methods=['GET', 'POST'])
 def api():
     global WAKEUP_INT
-    mpdlient = musicpd.MPDClient()
-    mpdlient.connect()
+    mpd = musicpd.MPDClient()
+    mpd.connect()
     lightbulb = wizlight(APP.config['LIGHTBULB_IP'])
     response = {}
     if request.method == 'POST':
@@ -65,13 +75,13 @@ def api():
                         colortemp=int(request.args['temperature']))))
         response = {}
         if 'mpd' in request.args and request.args['mpd'] == 'off':
-            mpdlient.clear()
+            mpd.clear()
     else:
         asyncio.run(lightbulb.updateState())
         response = {
-            'volume': mpdlient.status()['volume'],
-            'commands': mpdlient.commands(),
-            'song': mpdlient.currentsong().get('name', 'None'),
+            'volume': mpd.status()['volume'],
+            'commands': mpd.commands(),
+            'song': mpd.currentsong().get('name', 'None'),
             'brightness': lightbulb.state.get_brightness(),
             'temperature': lightbulb.state.get_colortemp()
         }
@@ -80,27 +90,28 @@ def api():
 
 def wakeup():
     global WAKEUP_INT
+    mpd = musicpd.MPDClient()
+    mpd.connect()
     WAKEUP_INT = False
-    mpdlient = musicpd.MPDClient()
-    mpdlient.connect()
     lightbulb = wizlight(APP.config['LIGHTBULB_IP'])
 
     bright_start = 0
     bright_stop = 255
     temp_start = 2700
     temp_stop = 6500
+    old_volume = mpd.status()['volume']
 
-    mpdlient.clear()
-    mpdlient.setvol(0)
-    mpdlient.add('https://rozhlas.stream/jazz_aac_128.aac')
-    mpdlient.play()
+    mpd.clear()
+    mpd.setvol(0)
+    mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
+    mpd.play()
     for i in range(101):
         APP.logger.warn("StopFlag/task: %s", str(WAKEUP_INT))
         if WAKEUP_INT:
-            mpdlient.setvol(100)
+            mpd.setvol(old_volume)
             return
         volume=int((i*70)/100+30)
-        mpdlient.setvol(volume)
+        mpd.setvol(volume)
         APP.logger.warn("volume: %i", volume)
         bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
         temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
