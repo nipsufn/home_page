@@ -76,6 +76,11 @@ def api():
         response = {}
         if 'mpd' in request.args and request.args['mpd'] == 'off':
             mpd.clear()
+        if 'mpd' in request.args and request.args['mpd'] == 'on':
+            mpd.clear()
+            mpd.setvol(100)
+            mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
+            mpd.play()
     else:
         asyncio.run(lightbulb.updateState())
         response = {
