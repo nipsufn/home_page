@@ -1,3 +1,12 @@
 .material-icons {
-  line-height: 1.7;
+  line-height: 2;
+}
+
+.page-content {
+  padding-top: 1em;
+}
+
+.label {
+  margin-left: 20px;
+  margin-right: 20px;
 }

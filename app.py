@@ -50,6 +50,7 @@ def index():
     """Webpage with advanced controls"""
     mpd = musicpd.MPDClient()
     mpd.connect()
+    APP.logger.warning("index form: %s", json.dumps(request.form))
     if 'volume' in request.form:
         mpd.setvol(request.form['volume'])
     return render_template("index.html.j2",
