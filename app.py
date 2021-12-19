@@ -63,24 +63,44 @@ def api():
     global WAKEUP_INT
     mpd = musicpd.MPDClient()
     mpd.connect()
-    lightbulb = wizlight(APP.config['LIGHTBULB_IP'])
     response = {}
     if request.method == 'POST':
         #do what you gotta do
         WAKEUP_INT = True
-        if 'bulb' in request.args and request.args['bulb'] == 'off':
-            asyncio.run(lightbulb.turn_off())
-        response = {}
-        if 'bulb' in request.args \
-            and request.args['bulb'] == 'on' \
-            and 'brightness' in request.args \
-            and 'temperature' in request.args:
-            asyncio.run(
-                lightbulb.turn_on(
-                    PilotBuilder(
-                        brightness=int(request.args['brightness']),
-                        colortemp=int(request.args['temperature']))))
-        response = {}
+        if 'bulb' in request.args:
+            lightbulb = wizlight(APP.config['LIGHTBULBS'][request.args['bulb']])
+            if request.args['op'] == 'off':
+                asyncio.run(lightbulb.turn_off())
+
+            if request.args['op'] == 'on' \
+                and 'brightness' in request.args \
+                and 'temperature' in request.args:
+                asyncio.run(
+                    lightbulb.turn_on(
+                        PilotBuilder(
+                            brightness=int(request.args['brightness']),
+                            colortemp=int(request.args['temperature']))))
+            if request.args['op'] == 'on' \
+                and 'brightness' in request.args \
+                and 'rgb' in request.args:
+                asyncio.run(
+                    lightbulb.turn_on(
+                        PilotBuilder(
+                            brightness=int(request.args['brightness']),
+                            rgb=tuple(int(request.args['rgb'][i:i+2], 16) for i in (0, 2, 4))
+                            )))
+            if request.args['op'] == 'on' \
+                and 'brightness' in request.args \
+                and 'colour' in request.args:
+                colour = (0,0,0)
+                if request.args['colour'] == 'red':
+                    colour = (255,0,0)
+                asyncio.run(
+                    lightbulb.turn_on(
+                        PilotBuilder(
+                            brightness=int(request.args['brightness']),
+                            rgb=colour)))
+
         if 'mpd' in request.args and request.args['mpd'] == 'off':
             mpd.clear()
         if 'mpd' in request.args and request.args['mpd'] == 'on':
@@ -89,6 +109,7 @@ def api():
             mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
             mpd.play()
     else:
+        lightbulb = wizlight(APP.config['LIGHTBULBS']['nightstand'])
         asyncio.run(lightbulb.updateState())
         response = {
             'volume': mpd.status()['volume'],
@@ -107,7 +128,7 @@ def wakeup():
     mpd = musicpd.MPDClient()
     mpd.connect()
     WAKEUP_INT = False
-    lightbulb = wizlight(APP.config['LIGHTBULB_IP'])
+    lightbulb = wizlight(APP.config['LIGHTBULBS']['nightstand'])
 
     bright_start = 0
     bright_stop = 255

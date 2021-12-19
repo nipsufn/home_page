@@ -1,5 +1,8 @@
 {
-  "LIGHTBULB_IP": "192.168.x.x",
+  {
+  "LIGHTBULBS": {
+    "bulb": "192.168.x.x"
+  },
   "ALARMS": [
     {
       "minute": "51",
