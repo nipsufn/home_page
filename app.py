@@ -73,33 +73,29 @@ def api():
                 asyncio.run(lightbulb.turn_off())
 
             if request.args['op'] == 'on' \
-                and 'brightness' in request.args \
-                and 'temperature' in request.args:
-                asyncio.run(
-                    lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(request.args['brightness']),
-                            colortemp=int(request.args['temperature']))))
-            if request.args['op'] == 'on' \
-                and 'brightness' in request.args \
-                and 'rgb' in request.args:
-                asyncio.run(
-                    lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(request.args['brightness']),
-                            rgb=tuple(int(request.args['rgb'][i:i+2], 16) for i in (0, 2, 4))
-                            )))
-            if request.args['op'] == 'on' \
-                and 'brightness' in request.args \
-                and 'colour' in request.args:
-                colour = (0,0,0)
-                if request.args['colour'] == 'red':
-                    colour = (255,0,0)
-                asyncio.run(
-                    lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(request.args['brightness']),
-                            rgb=colour)))
+                and 'brightness' in request.args:
+                if 'temperature' in request.args:
+                    asyncio.run(
+                        lightbulb.turn_on(
+                            PilotBuilder(
+                                brightness=int(request.args['brightness']),
+                                colortemp=int(request.args['temperature']))))
+                if 'rgb' in request.args:
+                    asyncio.run(
+                        lightbulb.turn_on(
+                            PilotBuilder(
+                                brightness=int(request.args['brightness']),
+                                rgb=tuple(int(request.args['rgb'][i:i+2], 16) for i in (0, 2, 4))
+                                )))
+                if 'colour' in request.args:
+                    colour = (0,0,0)
+                    if request.args['colour'] == 'red':
+                        colour = (255,0,0)
+                    asyncio.run(
+                        lightbulb.turn_on(
+                            PilotBuilder(
+                                brightness=int(request.args['brightness']),
+                                rgb=colour)))
 
         if 'mpd' in request.args and request.args['mpd'] == 'off':
             mpd.clear()
