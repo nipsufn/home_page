@@ -45,6 +45,10 @@ def add_alarms():
 add_alarms()
 SCHED.start()
 
+def get_rgb_tuple(rgb_hex_string):
+    """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
+    return tuple(int(rgb_hex_string[i:i+2], 16) for i in (0, 2, 4))
+
 @APP.route('/', methods=['GET', 'POST'])
 def index():
     """Webpage with advanced controls"""
@@ -68,42 +72,46 @@ def api():
         #do what you gotta do
         WAKEUP_INT = True
         if 'bulb' in request.args:
-            lightbulb = wizlight(APP.config['LIGHTBULBS'][request.args['bulb']])
-            if request.args['op'] == 'off':
-                asyncio.run(lightbulb.turn_off())
+            for bulb in request.args.getlist('bulb'):
+                lightbulb = wizlight(APP.config['LIGHTBULBS'][bulb])
+                if request.args['op'] == 'off':
+                    asyncio.run(lightbulb.turn_off())
 
-            if request.args['op'] == 'on' \
-                and 'brightness' in request.args:
-                if 'temperature' in request.args:
-                    asyncio.run(
-                        lightbulb.turn_on(
-                            PilotBuilder(
-                                brightness=int(request.args['brightness']),
-                                colortemp=int(request.args['temperature']))))
-                if 'rgb' in request.args:
-                    asyncio.run(
-                        lightbulb.turn_on(
-                            PilotBuilder(
-                                brightness=int(request.args['brightness']),
-                                rgb=tuple(int(request.args['rgb'][i:i+2], 16) for i in (0, 2, 4))
-                                )))
-                if 'colour' in request.args:
-                    colour = (0,0,0)
-                    if request.args['colour'] == 'red':
-                        colour = (255,0,0)
-                    asyncio.run(
-                        lightbulb.turn_on(
-                            PilotBuilder(
-                                brightness=int(request.args['brightness']),
-                                rgb=colour)))
-
-        if 'mpd' in request.args and request.args['mpd'] == 'off':
-            mpd.clear()
-        if 'mpd' in request.args and request.args['mpd'] == 'on':
-            mpd.clear()
-            mpd.setvol(100)
-            mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
-            mpd.play()
+                if request.args['op'] == 'on' \
+                    and 'brightness' in request.args:
+                    if 'temperature' in request.args:
+                        asyncio.run(
+                            lightbulb.turn_on(
+                                PilotBuilder(
+                                    brightness=int(request.args['brightness']),
+                                    colortemp=int(request.args['temperature']))))
+                    if 'rgb' in request.args:
+                        asyncio.run(
+                            lightbulb.turn_on(
+                                PilotBuilder(
+                                    brightness=int(request.args['brightness']),
+                                    rgb=get_rgb_tuple(request.args['rgb'])
+                                    )))
+                    if 'colour' in request.args:
+                        colour = (0,0,0)
+                        if request.args['colour'] == 'red':
+                            colour = (255,0,0)
+                        asyncio.run(
+                            lightbulb.turn_on(
+                                PilotBuilder(
+                                    brightness=int(request.args['brightness']),
+                                    rgb=colour)))
+        if 'mpd' in request.args:
+            if request.args['mpd'] == 'off':
+                mpd.clear()
+            if request.args['mpd'] == 'on':
+                mpd.clear()
+                mpd.setvol(100)
+                mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
+                mpd.play()
+            if request.args['mpd'] == 'volume' and 'volume' in request.args:
+                APP.logger.warning("trying to set volume: %s", request.args['volume'])
+                mpd.setvol(request.args['volume'])
     else:
         lightbulb = wizlight(APP.config['LIGHTBULBS']['nightstand'])
         asyncio.run(lightbulb.updateState())
