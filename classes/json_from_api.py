@@ -11,7 +11,7 @@ class JSONFromAPI:
     def __init__(self):
         """Class constructor
         """
-        self.logger = logging.getLogger('eink_status.JSONFromAPI')
+        self.logger = logging.getLogger(__name__)
         self.logger.debug('__init__')
 
     def _get_json_from_url(self, url, timeout=10):

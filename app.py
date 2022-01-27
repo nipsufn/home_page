@@ -1,163 +1,224 @@
+#!/usr/bin/env python3
 """Flask app scheduling/starting/stopping nightlight and radio"""
-import asyncio
+
+import argparse
+from datetime import datetime, timedelta
+import logging
+import logging.handlers
+import multiprocessing
+
+import sys
 import json
-import time
-from flask import Flask, render_template, request, logging
-from flask_sqlalchemy import SQLAlchemy
-import musicpd
-from pywizlight import wizlight, PilotBuilder
+
 from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from flask import Flask, Response, render_template, request, logging as flasklogging
+#from flask_sqlalchemy import SQLAlchemy
+import musicpd
+import serial
 
 
-APP = Flask(__name__)
-APP.logger = logging.create_logger(APP)
-APP.config.from_json("config.json")
-APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-DB = SQLAlchemy(APP)
+from classes.airly import Airly
+from classes.c_ro_jazz import CRoJazz
+from classes.open_weather_map import OpenWeatherMap
+from classes import wizbulb
+from classes import wakeup
+from classes import eink
 
-WAKEUP_INT = False
+app = Flask(__name__)
 
-SCHED = BackgroundScheduler(daemon=True)
-def add_alarms():
-    """Initialize scheduler with alarms from config"""
-    for alarm in APP.config['ALARMS']:
-        APP.logger.warning("Alarm scheduled: %s", json.dumps(alarm))
-        minute='45'
-        hour='07'
-        day='*'
-        month="*"
-        day_of_week="*"
-        if 'minute' in alarm:
-            minute=alarm['minute']
-        if 'hour' in alarm:
-            hour=alarm['hour']
-        if 'day' in alarm:
-            day=alarm['day']
-        if 'month' in alarm:
-            month=alarm['month']
-        if 'day_of_week' in alarm:
-            day_of_week=alarm['day_of_week']
+class PlainTextTcpHandler(logging.handlers.SocketHandler):
+    """ Sends plain text log message over TCP channel """
+    def makePickle(self, record):
+        message = self.formatter.format(record)
+        return message.encode()
 
-        SCHED.add_job(
-            lambda: wakeup(),'cron', # pylint: disable=unnecessary-lambda
-            minute=minute, hour=hour, day=day,
-            month=month, day_of_week=day_of_week)
-add_alarms()
-SCHED.start()
+def mpd(mpd_request: dict,) -> None:
+    """handle mpd-related requests"""
+    app.producer_wakeup_int.send(True)
+    mpd_client = musicpd.MPDClient()
+    mpd_client.connect()
+    if mpd_request.args['mpd'] == 'off':
+        mpd_client.clear()
+    if mpd_request.args['mpd'] == 'on':
+        mpd_client.clear()
+        mpd_client.setvol(100)
+        mpd_client.add('https://rozhlas.stream/jazz_aac_128.aac')
+        mpd_client.play()
+    if mpd_request.args['mpd'] == 'volume' and 'volume' in mpd_request.args:
+        app.logger.warning("trying to set volume: %s",
+            mpd_request.args['volume'])
+        mpd_client.setvol(mpd_request.args['volume'])
 
-def get_rgb_tuple(rgb_hex_string):
-    """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
-    return tuple(int(rgb_hex_string[i:i+2], 16) for i in (0, 2, 4))
-
-@APP.route('/', methods=['GET', 'POST'])
-def index():
+@app.route('/', methods=['GET', 'POST'])
+def index() -> str:
     """Webpage with advanced controls"""
-    mpd = musicpd.MPDClient()
-    mpd.connect()
-    APP.logger.warning("index form: %s", json.dumps(request.form))
+    mpd_client = musicpd.MPDClient()
+    mpd_client.connect()
+    app.logger.warning("index form: %s", json.dumps(request.form))
     if 'volume' in request.form:
-        mpd.setvol(request.form['volume'])
+        mpd_client.setvol(request.form['volume'])
     return render_template("index.html.j2",
-        audioVolume=mpd.status()['volume'])
+        audioVolume=mpd_client.status()['volume'])
 
-@APP.route('/api', methods=['GET', 'POST'])
-def api():
+@app.route('/api', methods=['GET', 'POST'])
+def api() -> Response:
     """Handle API calls"""
-    # pylint: disable-next=global-statement
-    global WAKEUP_INT
-    mpd = musicpd.MPDClient()
-    mpd.connect()
     response = {}
     if request.method == 'POST':
-        #do what you gotta do
-        WAKEUP_INT = True
         if 'bulb' in request.args:
-            for bulb in request.args.getlist('bulb'):
-                lightbulb = wizlight(APP.config['LIGHTBULBS'][bulb])
-                if request.args['op'] == 'off':
-                    asyncio.run(lightbulb.turn_off())
-
-                if request.args['op'] == 'on' \
-                    and 'brightness' in request.args:
-                    if 'temperature' in request.args:
-                        asyncio.run(
-                            lightbulb.turn_on(
-                                PilotBuilder(
-                                    brightness=int(request.args['brightness']),
-                                    colortemp=int(request.args['temperature']))))
-                    if 'rgb' in request.args:
-                        asyncio.run(
-                            lightbulb.turn_on(
-                                PilotBuilder(
-                                    brightness=int(request.args['brightness']),
-                                    rgb=get_rgb_tuple(request.args['rgb'])
-                                    )))
-                    if 'colour' in request.args:
-                        colour = (0,0,0)
-                        if request.args['colour'] == 'red':
-                            colour = (255,0,0)
-                        asyncio.run(
-                            lightbulb.turn_on(
-                                PilotBuilder(
-                                    brightness=int(request.args['brightness']),
-                                    rgb=colour)))
+            wizbulb.set_bulb(request, app.config)
         if 'mpd' in request.args:
-            if request.args['mpd'] == 'off':
-                mpd.clear()
-            if request.args['mpd'] == 'on':
-                mpd.clear()
-                mpd.setvol(100)
-                mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
-                mpd.play()
-            if request.args['mpd'] == 'volume' and 'volume' in request.args:
-                APP.logger.warning("trying to set volume: %s", request.args['volume'])
-                mpd.setvol(request.args['volume'])
+            mpd(request)
     else:
-        lightbulb = wizlight(APP.config['LIGHTBULBS']['nightstand'])
-        asyncio.run(lightbulb.updateState())
+        mpd_client = musicpd.MPDClient()
+        mpd_client.connect()
+        out = wizbulb.get_bulb(app.config)
         response = {
-            'volume': mpd.status()['volume'],
-            'commands': mpd.commands(),
-            'song': mpd.currentsong().get('name', 'None'),
-            'brightness': lightbulb.state.get_brightness(),
-            'temperature': lightbulb.state.get_colortemp()
+            'volume': mpd_client.status()['volume'],
+            'commands': mpd_client.commands(),
+            'song': mpd_client.currentsong(),
+            'bulbs': out,
         }
-    APP.logger.warning("StopFlag/api: %s", str(WAKEUP_INT))
-    return json.dumps(response, indent=2)
+    response = Response(json.dumps(response, indent=2),
+        200, mimetype='application/json')
+    response.headers["Content-Type"] = "application/json; charset=utf-8"
+    return response
 
-def wakeup():
-    """Wakeup procedure"""
-    # pylint: disable-next=global-statement
-    global WAKEUP_INT
-    mpd = musicpd.MPDClient()
-    mpd.connect()
-    WAKEUP_INT = False
-    lightbulb = wizlight(APP.config['LIGHTBULBS']['nightstand'])
+#scheduled job
+def add_alarms(sched: BackgroundScheduler,
+        consumer_wakeup_int: multiprocessing.connection.Connection) -> None:
+    """Initialize scheduler with alarms from config"""
+    for alarm in app.config['ALARMS']:
 
-    bright_start = 0
-    bright_stop = 255
-    temp_start = 2700
-    temp_stop = 6500
-    old_volume = mpd.status()['volume']
+        minute=alarm['minute']
+        hour=alarm['hour']
+        day=alarm['day']
+        month=alarm['month']
+        day_of_week=alarm['day_of_week']
 
-    mpd.clear()
-    mpd.setvol(0)
-    mpd.add('https://rozhlas.stream/jazz_aac_128.aac')
-    mpd.play()
-    for i in range(101):
-        APP.logger.warning("StopFlag/task: %s", str(WAKEUP_INT))
-        if WAKEUP_INT:
-            mpd.setvol(old_volume)
-            return
-        volume=int((i*70)/100+30)
-        mpd.setvol(volume)
-        APP.logger.warning("volume: %i", volume)
-        bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
-        temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
-        APP.logger.warning("brightness: %i; temperature: %i", bright, temp)
-        asyncio.run(
-            lightbulb.turn_on(
-                PilotBuilder(
-                    brightness=bright,
-                    colortemp=temp)))
-        time.sleep(6)
+        sched.add_job(
+            wakeup.wakeup,
+            trigger = 'cron',
+            args = [consumer_wakeup_int, app.config],
+            minute=minute,
+            hour=hour,
+            day=day,
+            month=month,
+            day_of_week=day_of_week)
+
+        app.logger.warning("Alarm scheduled: %s", json.dumps(alarm))
+
+#process
+def tcplog(tcplog_consumer: multiprocessing.connection.Connection,
+        host: str, port: int) -> None:
+    """Send text from pipe to TCP"""
+    log = logging.getLogger("tcplog")
+    log_handler = PlainTextTcpHandler(host, port)
+    log_handler.setFormatter(logging.Formatter('%(message)s'))
+    log.addHandler(log_handler)
+    while True:
+        app.logger.warning("tcplog: consuming")
+        log.warning(tcplog_consumer.recv())
+
+#process
+def serial_to_log(tcplog_producer:
+        multiprocessing.connection.Connection) -> None:
+    """Read serial and send to logger"""
+    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=90)
+    ser.flushInput()
+    while True:
+        try:
+            ser_out = ser.readline()
+            app.logger.warning("serial_to_log: producing")
+            tcplog_producer.send(ser_out.decode("utf-8"))
+        except serial.serialutil.SerialException:
+            exc_type, value, _ = sys.exc_info()
+            app.logger.warning("%s: %s", exc_type.__name__, value)
+
+def main():
+    """main wrapper"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-l", "--loglevel", type=str,
+                        choices=['critical','error','warning','info','debug'],
+                        help="set loglevel")
+    parser.add_argument("-d", "--debug", "-v", "--verbose", action="store_true",
+                        help="debug mode")
+    args = parser.parse_args()
+
+    level_str_to_int = {
+        'critical': logging.CRITICAL,
+        'fatal': logging.FATAL,
+        'error': logging.ERROR,
+        'warn': logging.WARNING,
+        'warning': logging.WARNING,
+        'info': logging.INFO,
+        'debug': logging.DEBUG,
+        'notset': logging.NOTSET,
+    }
+    if args.loglevel:
+        logging.basicConfig(level=level_str_to_int[args.loglevel])
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+
+    app.logger = flasklogging.create_logger(app)
+    app.config.from_file("config.json", json.load)
+
+    app.cro_jazz = CRoJazz()
+    app.open_weather = OpenWeatherMap(
+        app.config['FORECAST']['forecastLocation'],
+        app.config['FORECAST']['forecastToken']
+        )
+    app.smog_airly = Airly(
+        app.config['FORECAST']['smogLocations'],
+        app.config['FORECAST']['smogToken']
+        )
+
+    consumer_cro, producer_cro = multiprocessing.Pipe()
+    consumer_opw, producer_opw = multiprocessing.Pipe()
+    consumer_arl, producer_arl = multiprocessing.Pipe()
+    consumer_tcplog, producer_tcplog = multiprocessing.Pipe()
+    consumer_wakeup_int, app.producer_wakeup_int = multiprocessing.Pipe()
+
+    #APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    #DB = SQLAlchemy(APP)
+
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler_start = datetime.now()+timedelta(seconds=10)
+    scheduler.add_job(
+        app.cro_jazz.update,
+        trigger = 'interval',
+        args = [producer_cro],
+        minutes=1,
+        start_date=scheduler_start)
+    scheduler.add_job(
+        app.open_weather.update,
+        trigger = 'interval',
+        args = [producer_opw],
+        hours=1,
+        start_date=scheduler_start)
+    scheduler.add_job(
+        app.smog_airly.update,
+        trigger = 'interval',
+        args = [producer_arl],
+        hours=1,
+        start_date=scheduler_start)
+
+    add_alarms(scheduler, consumer_wakeup_int)
+
+    multiprocessing.log_to_stderr()
+    tcplog_proc = multiprocessing.Process(target=tcplog,
+        args=[consumer_tcplog, '127.0.0.1', 5170])
+    tcplog_proc.start()
+    serial_proc = multiprocessing.Process(target=serial_to_log,
+        args=[producer_tcplog])
+    serial_proc.start()
+    eink_proc = multiprocessing.Process(target=eink.update_eink,
+        args=[consumer_cro, consumer_opw, consumer_arl, producer_tcplog])
+    eink_proc.start()
+
+    scheduler.start()
+    app.run()
+
+if __name__ == "__main__":
+    main()

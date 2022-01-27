@@ -2,6 +2,7 @@
 """This module queries OpenWeatherMap.org and provides retrieved data
 """
 import logging
+import multiprocessing
 from datetime import datetime, timedelta
 import matplotlib
 import matplotlib.pyplot as plot
@@ -20,14 +21,22 @@ class OpenWeatherMap(JSONFromAPI):
             token (str): API token
         """
         super(OpenWeatherMap, self).__init__()
-        self.logger = logging.getLogger('eink_status.OpenWeatherMap')
+        self.logger = logging.getLogger(__name__)
+        log_handler = logging.StreamHandler()
+        log_handler.setFormatter(
+            logging.Formatter(
+                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+                )
+            )
+        self.logger.addHandler(log_handler)
         self.logger.debug('__init__')
         self.__location = location
         self.__token = token
         self.json = None
         self.sunrise = ""
         self.sunset = ""
-        self.update()
+        self._updated = False
+        self.__update()
 
     def __get_night_timestamps(self, x_axis_timestamps, days=0):
         """Project sunset and sunrise times few days forward
@@ -63,14 +72,18 @@ class OpenWeatherMap(JSONFromAPI):
                     sunrise = x_axis_timestamps[0]
 
             night_timestamps.append([sunset, sunrise])
+            self.logger.debug(
+                "sunset: %s; sunrise: %s",
+                datetime.fromtimestamp(sunset).strftime('%Y-%m-%d %H:%M'),
+                datetime.fromtimestamp(sunrise).strftime('%Y-%m-%d %H:%M')
+                )
             i += 1
             if breakout or (days != 0 and i > days):
                 break
         return night_timestamps
 
-    def update(self):
-        """Update forecast data
-        """
+    def __update(self) -> bool:
+        """Update forecast data"""
         tmp_url = (
             "http://api.openweathermap.org/data/2.5/forecast?q="
             + self.__location
@@ -79,12 +92,23 @@ class OpenWeatherMap(JSONFromAPI):
             )
         tmp_json = self._get_json_from_url(tmp_url)
         if tmp_json is None:
-            return
+            return False
         self.json = tmp_json
         self.sunrise = tmp_json['city']['sunrise']
         self.sunset = tmp_json['city']['sunset']
+        self._updated = True
+        return True
 
-    def plot(self, x_resolution, y_resolution, days=0):
+    def update(self, producer_opw: multiprocessing.connection.Connection) -> bool:
+        """Update and send forecast data"""
+        ret = self.__update()
+        self.logger.warning("opw: sending")
+        producer_opw.send({
+            'plot': self.plot()
+        })
+        return ret
+
+    def plot(self, x_resolution=420, y_resolution=200, days=0):
         """Generates weather plot containing precipitation and temperature
         Args:
             x_res (int): horizontal length in pixels
@@ -106,6 +130,9 @@ class OpenWeatherMap(JSONFromAPI):
         y_axis_temperature = []
         y_axis_precipitation = []
         for timestamp in self.json['list']:
+            self.logger.debug(
+                "timestamp: %s",
+                datetime.fromtimestamp(timestamp['dt']).strftime('%Y-%m-%d %H:%M'))
             x_axis_timestamps.append(timestamp['dt'])
             x_axis_hours.append(datetime.fromtimestamp(timestamp['dt']))
             y_axis_temperature.append(timestamp['main']['temp']-273.15)
@@ -120,7 +147,7 @@ class OpenWeatherMap(JSONFromAPI):
                                                   y_resolution/80),
                                          dpi=80)
         #plot precipitation
-        ax1 = temp_n_percip_plot.add_subplot()
+        ax1 = temp_n_percip_plot.add_subplot(111)
         ax1.plot(x_axis_hours, y_axis_precipitation, color='black')
         ax1.fill_between(x_axis_hours, 0, y_axis_precipitation, color='black')
         ax1.set_ylim(bottom=0)
@@ -168,6 +195,7 @@ class OpenWeatherMap(JSONFromAPI):
             'RGB',
             forecast_canvas.get_width_height(),
             forecast_canvas.tostring_rgb())
+
         #clean up
         plot.close(temp_n_percip_plot)
         self.logger.debug('plot generated ')
