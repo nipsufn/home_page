@@ -1,9 +1,9 @@
 # wizbulb.py
 """This module wraps WIZ lightbulb helper functions
 """
-import asyncio
 import sys
 import logging
+import socket
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
@@ -19,50 +19,58 @@ def get_rgb_tuple(rgb_hex_string: str) -> tuple:
     """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
     return tuple(int(rgb_hex_string[i:i+2], 16) for i in (0, 2, 4))
 
-def set_bulb(bulb_request: dict, config: dict) -> None:
+async def set_bulb(bulb_request: dict, config: dict) -> None:
     """handle bulb-related requests"""
+    __logger.warning("setting the goddamn bulbs")
+    bulbs = []
     for bulb_ip in bulb_request.args.getlist('bulb'):
-        lightbulb = wizlight(config['LIGHTBULBS'][bulb_ip])
+        for bulb in bulb_ip.split(','):
+            bulbs.append(bulb)
+    for bulb_ip in bulbs:
+        lightbulb = wizlight(socket.gethostbyname(config['LIGHTBULBS'][bulb_ip]))
         if bulb_request.args['op'] == 'off':
-            asyncio.run(lightbulb.turn_off())
+            __logger.warning("op off")
+            await lightbulb.turn_off()
 
         if bulb_request.args['op'] == 'on' \
             and 'brightness' in bulb_request.args:
             if 'temperature' in bulb_request.args:
-                asyncio.run(
-                    lightbulb.turn_on(
+                await lightbulb.turn_on(
                         PilotBuilder(
                             brightness=int(bulb_request.args['brightness']),
-                            colortemp=int(bulb_request.args['temperature']))))
+                            colortemp=int(bulb_request.args['temperature'])))
             if 'rgb' in bulb_request.args:
-                asyncio.run(
-                    lightbulb.turn_on(
+                await lightbulb.turn_on(
                         PilotBuilder(
                             brightness=int(bulb_request.args['brightness']),
                             rgb=get_rgb_tuple(bulb_request.args['rgb'])
-                            )))
+                            ))
             if 'colour' in bulb_request.args:
                 colour = (0,0,0)
                 if bulb_request.args['colour'] == 'red':
                     colour = (255,0,0)
-                asyncio.run(
-                    lightbulb.turn_on(
+                await lightbulb.turn_on(
                         PilotBuilder(
                             brightness=int(bulb_request.args['brightness']),
-                            rgb=colour)))
-def get_bulb(config: dict) -> dict:
+                            rgb=colour))
+async def get_bulb(config: dict) -> dict:
     """get information about bulb"""
     out = {}
     for bulb in config['LIGHTBULBS']:
-        lightbulb = wizlight(config['LIGHTBULBS'][bulb])
+        ip_address = socket.gethostbyname(config['LIGHTBULBS'][bulb])
+        lightbulb = wizlight(ip_address)
         try:
-            asyncio.run(lightbulb.updateState())
+            await lightbulb.updateState()
             out[bulb]={
-                'ip': config['LIGHTBULBS'][bulb],
+                'ip': ip_address,
+                'hostname': config['LIGHTBULBS'][bulb],
                 'brightness': lightbulb.state.get_brightness(),
                 'temperature': lightbulb.state.get_colortemp()
                 }
         except exceptions.WizLightConnectionError:
+            exc_type, value, _ = sys.exc_info()
+            __logger.warning("%s: %s -  %s", exc_type.__name__, value, bulb)
+        except AttributeError:
             exc_type, value, _ = sys.exc_info()
             __logger.warning("%s: %s -  %s", exc_type.__name__, value, bulb)
     return out

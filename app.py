@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import logging
 import logging.handlers
 import multiprocessing
-
 import sys
 import json
 
@@ -42,7 +41,7 @@ def mpd(mpd_request: dict,) -> None:
         mpd_client.clear()
     if mpd_request.args['mpd'] == 'on':
         mpd_client.clear()
-        mpd_client.setvol(100)
+        #mpd_client.setvol(100)
         mpd_client.add('https://rozhlas.stream/jazz_aac_128.aac')
         mpd_client.play()
     if mpd_request.args['mpd'] == 'volume' and 'volume' in mpd_request.args:
@@ -62,18 +61,19 @@ def index() -> str:
         audioVolume=mpd_client.status()['volume'])
 
 @app.route('/api', methods=['GET', 'POST'])
-def api() -> Response:
+async def api() -> Response:
     """Handle API calls"""
     response = {}
     if request.method == 'POST':
+        app.logger.warning(json.dumps(request.args))
         if 'bulb' in request.args:
-            wizbulb.set_bulb(request, app.config)
+            await wizbulb.set_bulb(request, app.config)
         if 'mpd' in request.args:
             mpd(request)
     else:
         mpd_client = musicpd.MPDClient()
         mpd_client.connect()
-        out = wizbulb.get_bulb(app.config)
+        out = await wizbulb.get_bulb(app.config)
         response = {
             'volume': mpd_client.status()['volume'],
             'commands': mpd_client.commands(),
@@ -171,7 +171,7 @@ def main():
         )
     app.smog_airly = Airly(
         app.config['FORECAST']['smogLocations'],
-        app.config['FORECAST']['smogToken']
+        app.config['FORECAST']['airlyToken']
         )
 
     consumer_cro, producer_cro = multiprocessing.Pipe()
@@ -203,6 +203,11 @@ def main():
         args = [producer_arl],
         hours=1,
         start_date=scheduler_start)
+    scheduler.add_job(
+        app.open_weather.schedule_at_sunset,
+        trigger = 'cron',
+        args = [scheduler, wakeup.sunset, app.config],
+        hour="12")
 
     add_alarms(scheduler, consumer_wakeup_int)
 

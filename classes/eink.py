@@ -47,7 +47,8 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
 
         if consumer_cro.poll():
             # here assing cro data
-            cro_jazz = consumer_cro.recv()
+            while consumer_cro.poll():
+                cro_jazz = consumer_cro.recv()
             if cro_jazz['updated']:
                 update_display = True
             __logger.debug('from pipe: %s', cro_jazz)
@@ -91,7 +92,7 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
                                 datetime.now().strftime('%Y-%m-%d'),
                                 font=framebuffer_font_big, fill=0)
 
-            #todo: only if crojazz is playing
+            #TODO: only if crojazz is playing
             top_offset = 45
             text_line = ('ČRoJazz: ' + cro_jazz['track_artist'] + " - "
                         + cro_jazz['track_title'])

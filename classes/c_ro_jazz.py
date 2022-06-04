@@ -11,7 +11,7 @@ class CRoJazz(JSONFromAPI):
     def __init__(self):
         """Class constructor
         """
-        super(CRoJazz, self).__init__()
+        super().__init__()
         self.logger = logging.getLogger(__name__)
         log_handler = logging.StreamHandler()
         log_handler.setFormatter(

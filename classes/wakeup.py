@@ -45,9 +45,30 @@ def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
         if wakeup_flag:
             mpd_client.setvol(old_volume)
             return
-        volume=int((i*old_volume)/100)
+        volume=int((i*int(old_volume))/100)
         mpd_client.setvol(volume)
         __logger.info("volume: %i", volume)
+        bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
+        temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
+        __logger.info("brightness: %i; temperature: %i", bright, temp)
+        asyncio.run(
+            lightbulb.turn_on(
+                PilotBuilder(
+                    brightness=bright,
+                    colortemp=temp)))
+        time.sleep(6)
+
+
+def sunset(config: dict) -> None:
+    """Sunset procedure"""
+    lightbulb = wizlight(config['LIGHTBULBS']['nightstand'])
+
+    bright_start = 0
+    bright_stop = 255
+    temp_start = 2700
+    temp_stop = 2700
+
+    for i in range(101):
         bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
         temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
         __logger.info("brightness: %i; temperature: %i", bright, temp)

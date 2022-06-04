@@ -9,6 +9,7 @@ import matplotlib.pyplot as plot
 import matplotlib.dates as plotDates
 from PIL import Image
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from classes.json_from_api import JSONFromAPI
 
 class OpenWeatherMap(JSONFromAPI):
@@ -20,7 +21,7 @@ class OpenWeatherMap(JSONFromAPI):
             location (str): forecast location, 'City,xx', xx = country code
             token (str): API token
         """
-        super(OpenWeatherMap, self).__init__()
+        super().__init__()
         self.logger = logging.getLogger(__name__)
         log_handler = logging.StreamHandler()
         log_handler.setFormatter(
@@ -37,6 +38,35 @@ class OpenWeatherMap(JSONFromAPI):
         self.sunset = ""
         self._updated = False
         self.__update()
+
+    def is_day(self) -> bool:
+        """check if it's day now"""
+        now = datetime.now()
+        if (datetime.fromtimestamp(self.sunrise)
+                > now
+                > datetime.fromtimestamp(self.sunset)):
+            return True
+        return False
+
+    def is_night(self) -> bool:
+        """check if it's night now"""
+        return not self.is_day()
+
+    def send_sunset_datetime(self,
+            producer_opw: multiprocessing.connection.Connection):
+        """send sunset datetime via pipe"""
+        self.logger.warning("opw: sending sunset")
+        producer_opw.send(datetime.fromtimestamp(self.sunset))
+
+    def schedule_at_sunset(self, scheduler: BackgroundScheduler,
+            function: object, args: dict, offset: timedelta = timedelta()):
+        """send sunset datetime via pipe"""
+        self.logger.warning("opw: scheduling a susnet job")
+        scheduler.add_job(
+            function,
+            trigger = 'date',
+            args = [args],
+            run_date=datetime.fromtimestamp(self.sunset) + offset)
 
     def __get_night_timestamps(self, x_axis_timestamps, days=0):
         """Project sunset and sunrise times few days forward
@@ -99,7 +129,8 @@ class OpenWeatherMap(JSONFromAPI):
         self._updated = True
         return True
 
-    def update(self, producer_opw: multiprocessing.connection.Connection) -> bool:
+    def update(self,
+            producer_opw: multiprocessing.connection.Connection) -> bool:
         """Update and send forecast data"""
         ret = self.__update()
         self.logger.warning("opw: sending")
@@ -123,7 +154,7 @@ class OpenWeatherMap(JSONFromAPI):
         #process forecast data
         matplotlib.use('Agg')
         forecast_plot_image = Image.new('RGB', (x_resolution, y_resolution),
-                                        (0xFF, 0xFF, 0xFF))
+            (0xFF, 0xFF, 0xFF))
 
         x_axis_timestamps = []
         x_axis_hours = []
