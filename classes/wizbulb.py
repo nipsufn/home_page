@@ -4,6 +4,7 @@
 import sys
 import logging
 import socket
+import asyncio
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
@@ -18,6 +19,11 @@ __logger.addHandler(__log_handler)
 def get_rgb_tuple(rgb_hex_string: str) -> tuple:
     """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
     return tuple(int(rgb_hex_string[i:i+2], 16) for i in (0, 2, 4))
+
+def set_bulb_sync(bulb_request: dict, config: dict) -> None:
+    """wrapper to run the function synchronously"""
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(set_bulb(bulb_request, config))
 
 async def set_bulb(bulb_request: dict, config: dict) -> None:
     """handle bulb-related requests"""

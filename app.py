@@ -26,6 +26,12 @@ from classes import eink
 
 app = Flask(__name__)
 
+def wrap_in_process(func, *args) -> None:
+    """wrap passed function in separate process"""
+    proc = multiprocessing.Process(target=func,
+        args=args)
+    proc.start()
+
 class PlainTextTcpHandler(logging.handlers.SocketHandler):
     """ Sends plain text log message over TCP channel """
     def makePickle(self, record):
@@ -67,7 +73,7 @@ async def api() -> Response:
     if request.method == 'POST':
         app.logger.warning(json.dumps(request.args))
         if 'bulb' in request.args:
-            await wizbulb.set_bulb(request, app.config)
+            wrap_in_process(wizbulb.set_bulb_sync, request, app.config)
         if 'mpd' in request.args:
             mpd(request)
     else:
@@ -182,8 +188,7 @@ def main():
 
     #APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
     #DB = SQLAlchemy(APP)
-
-    scheduler = BackgroundScheduler(daemon=True)
+    scheduler = BackgroundScheduler()
     scheduler_start = datetime.now()+timedelta(seconds=10)
     scheduler.add_job(
         app.cro_jazz.update,
@@ -212,15 +217,9 @@ def main():
     add_alarms(scheduler, consumer_wakeup_int)
 
     multiprocessing.log_to_stderr()
-    tcplog_proc = multiprocessing.Process(target=tcplog,
-        args=[consumer_tcplog, '127.0.0.1', 5170])
-    tcplog_proc.start()
-    serial_proc = multiprocessing.Process(target=serial_to_log,
-        args=[producer_tcplog])
-    serial_proc.start()
-    eink_proc = multiprocessing.Process(target=eink.update_eink,
-        args=[consumer_cro, consumer_opw, consumer_arl, producer_tcplog])
-    eink_proc.start()
+    wrap_in_process(tcplog, consumer_tcplog, '127.0.0.1', 5170)
+    wrap_in_process(serial_to_log, producer_tcplog)
+    wrap_in_process(eink.update_eink, consumer_cro, consumer_opw, consumer_arl, producer_tcplog)
 
     scheduler.start()
     app.run()
