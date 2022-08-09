@@ -10,14 +10,6 @@ import musicpd
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
-__logger.setLevel(logging.INFO)
-__log_handler = logging.StreamHandler()
-__log_handler.setFormatter(
-    logging.Formatter(
-        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-        )
-    )
-__logger.addHandler(__log_handler)
 
 def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
         config: dict) -> None:
@@ -80,8 +72,22 @@ async def wakeup_internal(consumer_wakeup_int: multiprocessing.connection.Connec
             __logger.warning("bulb timed out")
         time.sleep(6)
 
-
 def sunset(config: dict) -> None:
+    """Wakeup procedure process wrapper"""
+    __logger.warning("wakeup process wrapper")
+    multiprocessing.log_to_stderr()
+    proc = multiprocessing.Process(target=sunset_wrapper,
+        args=[config])
+    proc.start()
+
+def sunset_wrapper(config: dict) -> None:
+    """Wakeup procedure thread wrapper"""
+    __logger.warning("wakeup asyncio wrapper")
+    #asyncio.new_event_loop().create_task(wakeup_internal(consumer_wakeup_int, config))
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(sunset_internal(config))
+
+async def sunset_internal(config: dict) -> None:
     """Sunset procedure"""
     lightbulb = wizlight(config['LIGHTBULBS']['nightstand'])
 

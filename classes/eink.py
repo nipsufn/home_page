@@ -12,13 +12,6 @@ from PIL import Image, ImageDraw, ImageFont
 from classes.epd7in5b import Epd
 
 __logger = logging.getLogger(__name__)
-__log_handler = logging.StreamHandler()
-__log_handler.setFormatter(
-    logging.Formatter(
-        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-        )
-    )
-__logger.addHandler(__log_handler)
 
 #process
 def update_eink(consumer_cro: multiprocessing.connection.Connection,

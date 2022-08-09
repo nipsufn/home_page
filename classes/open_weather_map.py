@@ -22,15 +22,7 @@ class OpenWeatherMap(JSONFromAPI):
             token (str): API token
         """
         super().__init__()
-        self.logger = logging.getLogger(__name__)
-        log_handler = logging.StreamHandler()
-        log_handler.setFormatter(
-            logging.Formatter(
-                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-                )
-            )
-        self.logger.addHandler(log_handler)
-        self.logger.debug('__init__')
+        self.logger = logging.getLogger(type(self).__name__)
         self.__location = location
         self.__token = token
         self.json = None
@@ -38,6 +30,7 @@ class OpenWeatherMap(JSONFromAPI):
         self.sunset = ""
         self._updated = False
         self.__update()
+        self.logger.trace('Class initialized')
 
     def is_day(self) -> bool:
         """check if it's day now"""

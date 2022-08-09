@@ -35,11 +35,8 @@
 """This module wraps e-ink display configuration"""
 
 import time
-
 import spidev
-
-import RPi.GPIO as GPIO
-
+from RPi import GPIO
 
 # Pin definition
 RST_PIN         = 17

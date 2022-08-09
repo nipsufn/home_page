@@ -11,7 +11,7 @@ import json
 
 from apscheduler.schedulers.background import BackgroundScheduler
 #from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from flask import Flask, Response, render_template, request, logging as flasklogging
+from flask import Flask, Response, render_template, request
 #from flask_sqlalchemy import SQLAlchemy
 import musicpd
 import serial
@@ -25,6 +25,35 @@ from classes import wakeup
 from classes import eink
 
 app = Flask(__name__)
+
+def prepare_logger(args) -> None:
+    """create global logger, add trace loglevel"""
+
+    logging.TRACE = 5
+    logging.addLevelName(5, "TRACE")
+    logging.trace = lambda *args: logging.log(5, *args)
+    logging.Logger.trace = lambda self, *args: logging.log(5, *args)
+    level = logging.INFO
+
+    level_str_to_int = {
+        'critical': logging.CRITICAL,
+        'fatal': logging.FATAL,
+        'error': logging.ERROR,
+        'warn': logging.WARNING,
+        'warning': logging.WARNING,
+        'info': logging.INFO,
+        'debug': logging.DEBUG,
+        'trace': logging.TRACE,
+    }
+    if args.loglevel:
+        level=level_str_to_int[args.loglevel]
+    if args.trace:
+        level = logging.TRACE
+    if args.debug:
+        level=logging.DEBUG
+
+    logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(processName)s/%(threadName)s - '
+        '%(pathname)s:%(lineno)d - %(name)s - %(message)s', level=level)
 
 def wrap_in_process(func, *args) -> None:
     """wrap passed function in separate process"""
@@ -122,9 +151,11 @@ def tcplog(tcplog_consumer: multiprocessing.connection.Connection,
     log = logging.getLogger("tcplog")
     log_handler = PlainTextTcpHandler(host, port)
     log_handler.setFormatter(logging.Formatter('%(message)s'))
+    for handler in log.handlers:
+        log.removeHandler(handler)
     log.addHandler(log_handler)
     while True:
-        app.logger.warning("tcplog: consuming")
+        app.logger.info("tcplog: consuming")
         log.warning(tcplog_consumer.recv())
 
 #process
@@ -136,7 +167,7 @@ def serial_to_log(tcplog_producer:
     while True:
         try:
             ser_out = ser.readline()
-            app.logger.warning("serial_to_log: producing")
+            app.logger.info("serial_to_log: producing")
             tcplog_producer.send(ser_out.decode("utf-8"))
         except serial.serialutil.SerialException:
             exc_type, value, _ = sys.exc_info()
@@ -146,29 +177,29 @@ def main():
     """main wrapper"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", "--loglevel", type=str,
-                        choices=['critical','error','warning','info','debug'],
+                        choices=['critical','error','warning','info','debug', 'trace'],
                         help="set loglevel")
     parser.add_argument("-d", "--debug", "-v", "--verbose", action="store_true",
                         help="debug mode")
+    parser.add_argument("-dd", "--trace", "-vv", action="store_true",
+                        help="debug mode")
     args = parser.parse_args()
 
-    level_str_to_int = {
-        'critical': logging.CRITICAL,
-        'fatal': logging.FATAL,
-        'error': logging.ERROR,
-        'warn': logging.WARNING,
-        'warning': logging.WARNING,
-        'info': logging.INFO,
-        'debug': logging.DEBUG,
-        'notset': logging.NOTSET,
-    }
-    if args.loglevel:
-        logging.basicConfig(level=level_str_to_int[args.loglevel])
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+    prepare_logger(args)
 
-    app.logger = flasklogging.create_logger(app)
+    app.logger = logging.getLogger("home_page")
+    multiprocessing.log_to_stderr()
+    log_handler = logging.StreamHandler()
+    log_handler.setFormatter(
+        logging.Formatter('[%(asctime)s] %(levelname)s - %(processName)s/%(threadName)s - '
+            '%(pathname)s:%(lineno)d - %(name)s - %(message)s')
+        )
+
     app.config.from_file("config.json", json.load)
+    multiproc_logger = multiprocessing.get_logger()
+    for handler in multiproc_logger.handlers:
+        multiproc_logger.removeHandler(handler)
+    multiproc_logger.addHandler(log_handler)
 
     app.cro_jazz = CRoJazz()
     app.open_weather = OpenWeatherMap(
@@ -216,7 +247,6 @@ def main():
 
     add_alarms(scheduler, consumer_wakeup_int)
 
-    multiprocessing.log_to_stderr()
     wrap_in_process(tcplog, consumer_tcplog, '127.0.0.1', 5170)
     wrap_in_process(serial_to_log, producer_tcplog)
     wrap_in_process(eink.update_eink, consumer_cro, consumer_opw, consumer_arl, producer_tcplog)

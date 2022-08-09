@@ -11,8 +11,8 @@ class JSONFromAPI:
     def __init__(self):
         """Class constructor
         """
-        self.logger = logging.getLogger(__name__)
-        self.logger.debug('__init__')
+        self.logger = logging.getLogger(type(self).__name__)
+        self.logger.trace('Class initialized')
 
     def _get_json_from_url(self, url, timeout=10):
         """Protected: retrives json from URL

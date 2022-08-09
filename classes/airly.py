@@ -4,7 +4,7 @@
 import logging
 import inspect
 import multiprocessing
-from datetime import datetime
+#from datetime import datetime
 
 from classes.json_from_api import JSONFromAPI
 
@@ -18,15 +18,7 @@ class Airly(JSONFromAPI):
             token (str): API token
         """
         super().__init__()
-        self.logger = logging.getLogger(__name__)
-        log_handler = logging.StreamHandler()
-        log_handler.setFormatter(
-            logging.Formatter(
-                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-                )
-            )
-        self.logger.addHandler(log_handler)
-        self.logger.debug('__init__')
+        self.logger = logging.getLogger(type(self).__name__)
         self.__location_list = location_list
         self.__token = token
         self.pm100 = 0.0
@@ -39,6 +31,7 @@ class Airly(JSONFromAPI):
         self.humi = 50.0
         self._updated = False
         self.__update()
+        self.logger.trace('Class initialized')
 
     def __update(self) -> bool:
         """Update smog data"""
@@ -73,23 +66,23 @@ class Airly(JSONFromAPI):
             if service == "sensor_community":
                 continue
                 #TODO alternative provider
-                for location in self.__location_list[service]:
-                    retry = False
-                    sensors = ['P1', 'P2', 'temperature', 'humidity']
-                    tmp_url = (
-                        "https://data.sensor.community/airrohr/v1/sensor/"
-                        + location
-                        + "/"
-                        )
-                    tmp_json = self._get_json_from_url(tmp_url, timeout=60)
-                    tmp_json = sorted(tmp_json,
-                        cmp=self.__sensor_community_sort,
-                        key=lambda x:x['timestamp'])
-                    for sdv in tmp_json[0]['sensordatavalues']:
-                        for sensor in sensors:
-                            if sensor not in sdv.values():
-                                retry = True
-                                continue
+                #for location in self.__location_list[service]:
+                #    retry = False
+                #    sensors = ['P1', 'P2', 'temperature', 'humidity']
+                #    tmp_url = (
+                #        "https://data.sensor.community/airrohr/v1/sensor/"
+                #        + location
+                #        + "/"
+                #        )
+                #    tmp_json = self._get_json_from_url(tmp_url, timeout=60)
+                #    tmp_json = sorted(tmp_json,
+                #        cmp=self.__sensor_community_sort,
+                #        key=lambda x:x['timestamp'])
+                #    for sdv in tmp_json[0]['sensordatavalues']:
+                #        for sensor in sensors:
+                #            if sensor not in sdv.values():
+                #                retry = True
+                #                continue
 
         self.logger.warning('update not successful')
         return False
@@ -130,7 +123,7 @@ class Airly(JSONFromAPI):
             status = False
         return status
 
-    def __sensor_community_sort(self, a,b):
-        a_time = datetime.strptime(a,'%Y-%m-%d %H:%M:%S')
-        b_time = datetime.strptime(b,'%Y-%m-%d %H:%M:%S')
-        return 1 if a_time > b_time  else -1 if a_time < b_time else 0
+    #def __sensor_community_sort(self, left, right):
+    #    left_time = datetime.strptime(left,'%Y-%m-%d %H:%M:%S')
+    #    right_time = datetime.strptime(right,'%Y-%m-%d %H:%M:%S')
+    #    return 1 if left_time > right_time  else -1 if left_time < right_time else 0

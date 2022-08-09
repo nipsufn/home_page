@@ -49,12 +49,8 @@
 """This module drives e-ink display"""
 
 import logging
-
-import RPi.GPIO as GPIO
-
-import classes.epdconfig as epdconfig
-
-
+from RPi import GPIO
+from classes import epdconfig
 
 class Epd:
     # Display resolution
@@ -124,17 +120,10 @@ class Epd:
                             }
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        log_handler = logging.StreamHandler()
-        log_handler.setFormatter(
-            logging.Formatter(
-                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-                )
-            )
-        self.logger.addHandler(log_handler)
-        self.logger.debug('__init__')
+        self.logger = logging.getLogger(type(self).__name__)
         self.reset_pin = epdconfig.RST_PIN
         self.dc_pin = epdconfig.DC_PIN
+        self.logger.trace('Class initialized')
 
     # Hardware reset
     def reset(self):

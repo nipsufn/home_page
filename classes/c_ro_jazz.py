@@ -12,19 +12,12 @@ class CRoJazz(JSONFromAPI):
         """Class constructor
         """
         super().__init__()
-        self.logger = logging.getLogger(__name__)
-        log_handler = logging.StreamHandler()
-        log_handler.setFormatter(
-            logging.Formatter(
-                '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-                )
-            )
-        self.logger.addHandler(log_handler)
-        self.logger.debug('__init__')
+        self.logger = logging.getLogger(type(self).__name__)
         self.track_artist = "N/A"
         self.track_title = "N/A"
         self._updated = False
         self.__update()
+        self.logger.trace('Class initialized')
 
     def update(self, croj: multiprocessing.connection.Connection):
         """update"""

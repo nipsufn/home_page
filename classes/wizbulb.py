@@ -8,13 +8,6 @@ import asyncio
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
-__log_handler = logging.StreamHandler()
-__log_handler.setFormatter(
-    logging.Formatter(
-        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
-        )
-    )
-__logger.addHandler(__log_handler)
 
 def get_rgb_tuple(rgb_hex_string: str) -> tuple:
     """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
@@ -40,25 +33,32 @@ async def set_bulb(bulb_request: dict, config: dict) -> None:
 
         if bulb_request.args['op'] == 'on' \
             and 'brightness' in bulb_request.args:
+            pilot = PilotBuilder()
             if 'temperature' in bulb_request.args:
-                await lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(bulb_request.args['brightness']),
-                            colortemp=int(bulb_request.args['temperature'])))
+                pilot = PilotBuilder(
+                    brightness=int(bulb_request.args['brightness']),
+                    colortemp=int(bulb_request.args['temperature']))
             if 'rgb' in bulb_request.args:
-                await lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(bulb_request.args['brightness']),
-                            rgb=get_rgb_tuple(bulb_request.args['rgb'])
-                            ))
+                pilot = PilotBuilder(
+                    brightness=int(bulb_request.args['brightness']),
+                    rgb=get_rgb_tuple(bulb_request.args['rgb']))
             if 'colour' in bulb_request.args:
                 colour = (0,0,0)
                 if bulb_request.args['colour'] == 'red':
                     colour = (255,0,0)
-                await lightbulb.turn_on(
-                        PilotBuilder(
-                            brightness=int(bulb_request.args['brightness']),
-                            rgb=colour))
+                pilot = PilotBuilder(
+                    brightness=int(bulb_request.args['brightness']),
+                    rgb=colour)
+            attempts = 0
+            while attempts < 5:
+                try:
+                    await lightbulb.turn_on(pilot)
+                    break
+                # pylint: disable-next=broad-except
+                except Exception as exc:
+                    attempts += 1
+                    __logger.warning("couldn't set bulb %s", str(exc))
+
 async def get_bulb(config: dict) -> dict:
     """get information about bulb"""
     out = {}
