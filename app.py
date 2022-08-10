@@ -21,7 +21,7 @@ from classes.airly import Airly
 from classes.c_ro_jazz import CRoJazz
 from classes.open_weather_map import OpenWeatherMap
 from classes import wizbulb
-from classes import wakeup
+from classes import routines
 from classes import eink
 
 app = Flask(__name__)
@@ -133,7 +133,7 @@ def add_alarms(sched: BackgroundScheduler,
         day_of_week=alarm['day_of_week']
 
         sched.add_job(
-            wakeup.wakeup,
+            routines.wakeup,
             trigger = 'cron',
             args = [consumer_wakeup_int, app.config],
             minute=minute,
@@ -242,7 +242,7 @@ def main():
     scheduler.add_job(
         app.open_weather.schedule_at_sunset,
         trigger = 'cron',
-        args = [scheduler, wakeup.sunset, app.config],
+        args = [scheduler, routines.sunset, app.config],
         hour="12")
 
     add_alarms(scheduler, consumer_wakeup_int)

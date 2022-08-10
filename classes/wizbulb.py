@@ -25,6 +25,8 @@ async def set_bulb(bulb_request: dict, config: dict) -> None:
     for bulb_ip in bulb_request.args.getlist('bulb'):
         for bulb in bulb_ip.split(','):
             bulbs.append(bulb)
+    if len(bulbs) == 1 and bulbs[0] == 'all':
+        bulbs = config['LIGHTBULBS'].keys()
     for bulb_ip in bulbs:
         lightbulb = wizlight(socket.gethostbyname(config['LIGHTBULBS'][bulb_ip]))
         if bulb_request.args['op'] == 'off':
