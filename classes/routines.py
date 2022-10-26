@@ -24,7 +24,6 @@ def wakeup_wrapper(consumer_wakeup_int: multiprocessing.connection.Connection,
         config: dict) -> None:
     """Wakeup procedure thread wrapper"""
     __logger.warning("wakeup asyncio wrapper")
-    #asyncio.new_event_loop().create_task(wakeup_internal(consumer_wakeup_int, config))
     loop = asyncio.new_event_loop()
     loop.run_until_complete(wakeup_internal(consumer_wakeup_int, config))
 
@@ -83,7 +82,6 @@ def sunset(config: dict) -> None:
 def sunset_wrapper(config: dict) -> None:
     """Wakeup procedure thread wrapper"""
     __logger.warning("wakeup asyncio wrapper")
-    #asyncio.new_event_loop().create_task(wakeup_internal(consumer_wakeup_int, config))
     loop = asyncio.new_event_loop()
     loop.run_until_complete(sunset_internal(config))
 
@@ -100,9 +98,8 @@ async def sunset_internal(config: dict) -> None:
         bright=int((i * (bright_stop - bright_start) ) / 100 + bright_start)
         temp=int((i * (temp_stop - temp_start) ) / 100 + temp_start)
         __logger.info("brightness: %i; temperature: %i", bright, temp)
-        asyncio.run(
-            lightbulb.turn_on(
-                PilotBuilder(
-                    brightness=bright,
-                    colortemp=temp)))
+        await lightbulb.turn_on(
+            PilotBuilder(
+                brightness=bright,
+                colortemp=temp))
         time.sleep(6)

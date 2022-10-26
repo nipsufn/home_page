@@ -1,10 +1,13 @@
 # wizbulb.py
 """This module wraps WIZ lightbulb helper functions
 """
+from platform import machine
 import sys
 import logging
 import socket
 import asyncio
+import multiprocessing
+from typing import Optional
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
@@ -12,6 +15,24 @@ __logger = logging.getLogger(__name__)
 def get_rgb_tuple(rgb_hex_string: str) -> tuple:
     """take hex string `aabbcc` and split out to decimal R, G, B tuple"""
     return tuple(int(rgb_hex_string[i:i+2], 16) for i in (0, 2, 4))
+
+def wizbulb_off(ip: str, port: Optional[int], mac: Optional[str]) -> None:
+    multiprocessing.log_to_stderr()
+    proc = multiprocessing.Process(target=__wizbulb_off_wrapper,
+        args=[ip, port, mac])
+    proc.start()
+
+def __wizbulb_off_wrapper(ip: str, port: Optional[int], mac: Optional[str]) -> None:
+    wizlight(ip, port, mac).turn_off()
+
+def wizbulb_on(ip: str, port: Optional[int], mac: Optional[str], pilotBuilder: PilotBuilder) -> None:
+    multiprocessing.log_to_stderr()
+    proc = multiprocessing.Process(target=__wizbulb_on_wrapper,
+        args=[ip, port, mac, pilotBuilder])
+    proc.start()
+
+def __wizbulb_on_wrapper(ip: str, port: Optional[int], mac: Optional[str], pilotBuilder: PilotBuilder) -> None:
+    wizlight(ip, port, mac).turn_on(pilotBuilder)
 
 def set_bulb_sync(bulb_request: dict, config: dict) -> None:
     """wrapper to run the function synchronously"""

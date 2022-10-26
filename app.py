@@ -9,7 +9,8 @@ import multiprocessing
 import sys
 import json
 
-from apscheduler.schedulers.background import BackgroundScheduler
+#from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.background import BlockingScheduler
 #from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask import Flask, Response, render_template, request
 #from flask_sqlalchemy import SQLAlchemy
@@ -121,7 +122,7 @@ async def api() -> Response:
     return response
 
 #scheduled job
-def add_alarms(sched: BackgroundScheduler,
+def add_alarms(sched: BlockingScheduler,
         consumer_wakeup_int: multiprocessing.connection.Connection) -> None:
     """Initialize scheduler with alarms from config"""
     for alarm in app.config['ALARMS']:
@@ -219,8 +220,9 @@ def main():
 
     #APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
     #DB = SQLAlchemy(APP)
-    scheduler = BackgroundScheduler()
-    scheduler_start = datetime.now()+timedelta(seconds=10)
+    #scheduler = BackgroundScheduler()
+    scheduler = BlockingScheduler()
+    scheduler_start = datetime.now()+timedelta(seconds=30)
     scheduler.add_job(
         app.cro_jazz.update,
         trigger = 'interval',

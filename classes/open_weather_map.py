@@ -9,7 +9,7 @@ import matplotlib.pyplot as plot
 import matplotlib.dates as plotDates
 from PIL import Image
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.blocking import BlockingScheduler
 from classes.json_from_api import JSONFromAPI
 
 class OpenWeatherMap(JSONFromAPI):
@@ -51,7 +51,7 @@ class OpenWeatherMap(JSONFromAPI):
         self.logger.warning("opw: sending sunset")
         producer_opw.send(datetime.fromtimestamp(self.sunset))
 
-    def schedule_at_sunset(self, scheduler: BackgroundScheduler,
+    def schedule_at_sunset(self, scheduler: BlockingScheduler,
             function: object, args: dict, offset: timedelta = timedelta()):
         """send sunset datetime via pipe"""
         self.logger.warning("opw: scheduling a susnet job")
