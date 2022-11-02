@@ -211,7 +211,7 @@ def main():
         app.config['FORECAST']['airlyToken']
         )
 
-    app.flag_radio_playing = multiprocessing.Value('i', 0)
+    app.flag_radio_playing = multiprocessing.Value('i', 1)
     app.flag_master_switch = multiprocessing.Value('i', 1)
     consumer_cro, producer_cro = multiprocessing.Pipe()
     consumer_opw, producer_opw = multiprocessing.Pipe()

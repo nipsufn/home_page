@@ -21,7 +21,6 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
         flag_radio_playing: multiprocessing.sharedctypes.SynchronizedBase) -> None:
     """update e-ink display"""
     epd = Epd()
-    epd.init()
     epd.clear("white")
     startup_lock = True
     while True:
@@ -86,12 +85,12 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
                                 datetime.now().strftime('%Y-%m-%d'),
                                 font=framebuffer_font_big, fill=0)
 
-            #TODO: only if crojazz is playing
-            top_offset = 45
-            text_line = ('ČRoJazz: ' + cro_jazz['track_artist'] + " - "
-                        + cro_jazz['track_title'])
-            framebuffer_draw.text((10, top_offset+16), text_line,
-                                font=framebuffer_font_small, fill=0)
+            if bool(flag_radio_playing):
+                top_offset = 45
+                text_line = ('ČRoJazz: ' + cro_jazz['track_artist'] + " - "
+                            + cro_jazz['track_title'])
+                framebuffer_draw.text((10, top_offset+16), text_line,
+                                    font=framebuffer_font_small, fill=0)
 
             text_line = ('Smog:    ' + str(smog_airly['pm001']) + "/"
                         + str(smog_airly['pm025']) + "/"

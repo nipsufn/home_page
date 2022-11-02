@@ -48,18 +48,23 @@ BUSY_PIN        = 24
 SPI = spidev.SpiDev(0, 0)
 
 def digital_write(pin, value):
+    """Set GPIO pin"""
     GPIO.output(pin, value)
 
 def digital_read():
+    """Get GPIO pin"""
     return GPIO.input(BUSY_PIN)
 
 def delay_ms(delaytime):
+    """sleep function wrapper"""
     time.sleep(delaytime / 1000.0)
 
 def spi_writebyte(data):
+    """write to SPI"""
     SPI.writebytes(data)
 
 def module_init():
+    """Set up GPIO"""
     GPIO.setmode(GPIO.BCM)
     GPIO.setwarnings(False)
     GPIO.setup(RST_PIN, GPIO.OUT)

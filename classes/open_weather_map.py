@@ -51,8 +51,9 @@ class OpenWeatherMap(JSONFromAPI):
         self.logger.error("opw: sending sunset")
         producer_opw.send(datetime.fromtimestamp(self.sunset))
 
-    def schedule_at_sunset(self, scheduler: BlockingScheduler,
-            function: object, args: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase, offset: timedelta = timedelta()):
+    def schedule_at_sunset(self, scheduler: BlockingScheduler, function: object,
+            args: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase,
+            offset: timedelta = timedelta()):
         """send sunset datetime via pipe"""
         when = datetime.fromtimestamp(self.sunset)
         if when < datetime.now():

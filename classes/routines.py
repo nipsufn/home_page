@@ -73,7 +73,8 @@ def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
         time.sleep(interval)
     __logger.error("Wakeup routine finished")
 
-def sunset(config: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase, duration: int = 1200, steps: int = 100) -> None:
+def sunset(config: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase,
+        duration: int = 1200, steps: int = 100) -> None:
     """Sunset procedure"""
     __logger.error("Sunset routine started")
 

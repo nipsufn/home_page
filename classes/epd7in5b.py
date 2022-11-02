@@ -49,10 +49,12 @@
 """This module drives e-ink display"""
 
 import logging
+import PIL
 from RPi import GPIO
 from classes import epdconfig
 
 class Epd:
+    """e-ink display representation"""
     # Display resolution
     Width                                   = 640
     Height                                  = 384
@@ -123,10 +125,11 @@ class Epd:
         self.logger = logging.getLogger(type(self).__name__)
         self.reset_pin = epdconfig.RST_PIN
         self.dc_pin = epdconfig.DC_PIN
+        self._init()
         self.logger.debug('Class initialized')
 
-    # Hardware reset
     def reset(self):
+        """Hardware reset"""
         # epdconfig.digital_write(self.reset_pin, GPIO.HIGH)
         # epdconfig.delay_ms(200)
         epdconfig.digital_write(self.reset_pin, GPIO.LOW)         # module reset
@@ -134,98 +137,108 @@ class Epd:
         epdconfig.digital_write(self.reset_pin, GPIO.HIGH)
         epdconfig.delay_ms(200)
 
-    def send_command(self, command):
+    def _send_command(self, command):
         epdconfig.digital_write(self.dc_pin, GPIO.LOW)
         epdconfig.spi_writebyte([command])
 
-    def send_data(self, data):
+    def _send_data(self, data):
         epdconfig.digital_write(self.dc_pin, GPIO.HIGH)
         epdconfig.spi_writebyte([data])
 
-    def wait_until_idle(self):
+    def _wait_until_idle(self):
         self.logger.info("e-Paper busy")
         while epdconfig.digital_read() == 0:     # 0: busy, 1: idle
             epdconfig.delay_ms(100)
         self.logger.info("e-Paper busy release")
 
-    def init(self):
+    def _init(self):
         if epdconfig.module_init() != 0:
             return -1
 
         self.reset()
 
-        self.send_command(self.PowerSetting)
-        self.send_data(0x37)
-        self.send_data(0x00)
-        self.send_command(self.PanelSetting)
-        self.send_data(0xCF)
-        self.send_data(0x08)
-        self.send_command(self.BoosterSoftStart)
-        self.send_data(0xc7)
-        self.send_data(0xcc)
-        self.send_data(0x28)
-        self.send_command(self.PowerOn)
-        self.wait_until_idle()
-        self.send_command(self.PllControl)
-        self.send_data(0x3c)
-        self.send_command(self.TemperatureCalibration)
-        self.send_data(0x00)
-        self.send_command(self.VcomAndDataIntervalSetting)
-        self.send_data(0x77)
-        self.send_command(self.TconSetting)
-        self.send_data(0x22)
-        self.send_command(self.TconResolution)
-        self.send_data(0x02)     #source 640
-        self.send_data(0x80)
-        self.send_data(0x01)     #gate 384
-        self.send_data(0x80)
-        self.send_command(self.VcmDcSetting)
-        self.send_data(0x1E)      #decide by LUT file
-        self.send_command(0xe5)           #FLASH MODE
-        self.send_data(0x03)
+        self._send_command(self.PowerSetting)
+        self._send_data(0x37)
+        self._send_data(0x00)
+        self._send_command(self.PanelSetting)
+        self._send_data(0xCF)
+        self._send_data(0x08)
+        self._send_command(self.BoosterSoftStart)
+        self._send_data(0xc7)
+        self._send_data(0xcc)
+        self._send_data(0x28)
+        self._send_command(self.PowerOn)
+        self._wait_until_idle()
+        self._send_command(self.PllControl)
+        self._send_data(0x3c)
+        self._send_command(self.TemperatureCalibration)
+        self._send_data(0x00)
+        self._send_command(self.VcomAndDataIntervalSetting)
+        self._send_data(0x77)
+        self._send_command(self.TconSetting)
+        self._send_data(0x22)
+        self._send_command(self.TconResolution)
+        self._send_data(0x02)     #source 640
+        self._send_data(0x80)
+        self._send_data(0x01)     #gate 384
+        self._send_data(0x80)
+        self._send_command(self.VcmDcSetting)
+        self._send_data(0x1E)      #decide by LUT file
+        self._send_command(0xe5)           #FLASH MODE
+        self._send_data(0x03)
 
         return 0
 
-    def pxmap(self, pixel):
+    def _pxmap(self, pixel):
+        if pixel > 2:
+            self.logger.warning("image color palette > 3, converting anyway")
         pixel = pixel % 3
-        return self.pxmap3(pixel)
+        return self._pxmap3(pixel)
 
-    def pxmap3(self, pixel):
+    def _pxmap3(self, pixel):
         return self.ColorLookupPalette3[pixel]
 
-    def pxmap8(self, pixel):
+    def _pxmap8(self, pixel):
         return self.ColorLookupPalette8[pixel]
 
-    def display(self, image):
-        self.send_command(self.DataStartTransmission1)
+    def display(self, image: PIL.Image) -> None:
+        """Display image"""
+        if image.height != self.Height or image.width != self.Width:
+            self.logger.error("cannot display image of incorrect size")
+            return
+        self._send_command(self.DataStartTransmission1)
         imagedata = iter(list(image.getdata()))
         for pixel in imagedata:
-            byte = self.pxmap(pixel)
+            byte = self._pxmap(pixel)
             byte = byte << 4
             pixel = next(imagedata, 0)
-            byte = byte | self.pxmap(pixel)
-            self.send_data(byte)
+            byte = byte | self._pxmap(pixel)
+            self._send_data(byte)
 
-        self.send_command(self.DisplayRefresh)
+        self._send_command(self.DisplayRefresh)
         epdconfig.delay_ms(100)
-        self.wait_until_idle()
+        self._wait_until_idle()
 
-    def clear(self, color="white"):
-        self.send_command(self.DataStartTransmission1)
+    def clear(self, color: str = "white") -> None:
+        """Display solid color"""
+        if color not in self.ColorLookupNamed:
+            self.logger.error("unknown color")
+            return
+        self._send_command(self.DataStartTransmission1)
         byte = self.ColorLookupNamed[color]
         byte = byte << 4
         byte = byte | self.ColorLookupNamed[color]
         for _ in range(0, self.Width // 8 * self.Height):
-            self.send_data(byte)
-            self.send_data(byte)
-            self.send_data(byte)
-            self.send_data(byte)
-        self.send_command(self.DisplayRefresh)
+            self._send_data(byte)
+            self._send_data(byte)
+            self._send_data(byte)
+            self._send_data(byte)
+        self._send_command(self.DisplayRefresh)
         epdconfig.delay_ms(100)
-        self.wait_until_idle()
+        self._wait_until_idle()
 
-    def sleep(self):
-        self.send_command(self.PowerOff)
-        self.wait_until_idle()
-        self.send_command(self.DeepSleep)
-        self.send_data(0xA5)
+    def _sleep(self):
+        self._send_command(self.PowerOff)
+        self._wait_until_idle()
+        self._send_command(self.DeepSleep)
+        self._send_data(0xA5)
