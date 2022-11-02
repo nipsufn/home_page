@@ -17,17 +17,17 @@ class CRoJazz(JSONFromAPI):
         self.track_title = "N/A"
         self._updated = False
         self.__update()
-        self.logger.trace('Class initialized')
+        self.logger.debug('Class initialized')
 
     def update(self, croj: multiprocessing.connection.Connection):
         """update"""
         self.__update()
-        self.logger.warning("cro: sending")
         croj.send({
             'track_artist': self.track_artist,
             'track_title': self.track_title,
             'updated': self._updated
         })
+        self.logger.info("sent data via pipe")
         return True
 
     def __update(self) -> bool:

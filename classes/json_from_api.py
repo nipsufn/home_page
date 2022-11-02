@@ -12,7 +12,7 @@ class JSONFromAPI:
         """Class constructor
         """
         self.logger = logging.getLogger(type(self).__name__)
-        self.logger.trace('Class initialized')
+        self.logger.debug('Class initialized')
 
     def _get_json_from_url(self, url, timeout=10):
         """Protected: retrives json from URL
@@ -27,25 +27,25 @@ class JSONFromAPI:
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
         except requests.exceptions.ConnectionError as error:
-            self.logger.info("HTTP connection error!")
-            self.logger.debug(str(error))
+            self.logger.warning("HTTP connection error!")
+            self.logger.info(str(error))
             return None
         except requests.exceptions.Timeout as error:
-            self.logger.info("HTTP timeout!")
-            self.logger.debug(str(error))
+            self.logger.warning("HTTP timeout!")
+            self.logger.info(str(error))
             return None
         except requests.exceptions.HTTPError as error:
-            self.logger.info("HTTP Error: %i %s", error.response.status_code,
+            self.logger.warning("HTTP Error: %i %s", error.response.status_code,
                              error.response.reason)
-            self.logger.debug(str(error))
+            self.logger.info(str(error))
             return None
         if response.content is None:
-            self.logger.warning("Undefined error!\n")
+            self.logger.error("Undefined error!\n")
             return None
         try:
             return json.loads(response.content)
         except json.decoder.JSONDecodeError as error:
-            self.logger.info("JSON parsing error!")
-            self.logger.debug(str(error))
+            self.logger.warning("JSON parsing error!")
+            self.logger.info(str(error))
             return None
         return None

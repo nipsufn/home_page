@@ -30,7 +30,7 @@ class OpenWeatherMap(JSONFromAPI):
         self.sunset = ""
         self._updated = False
         self.__update()
-        self.logger.trace('Class initialized')
+        self.logger.debug('Class initialized')
 
     def is_day(self) -> bool:
         """check if it's day now"""
@@ -48,18 +48,22 @@ class OpenWeatherMap(JSONFromAPI):
     def send_sunset_datetime(self,
             producer_opw: multiprocessing.connection.Connection):
         """send sunset datetime via pipe"""
-        self.logger.warning("opw: sending sunset")
+        self.logger.error("opw: sending sunset")
         producer_opw.send(datetime.fromtimestamp(self.sunset))
 
     def schedule_at_sunset(self, scheduler: BlockingScheduler,
-            function: object, args: dict, offset: timedelta = timedelta()):
+            function: object, args: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase, offset: timedelta = timedelta()):
         """send sunset datetime via pipe"""
-        self.logger.warning("opw: scheduling a susnet job")
+        when = datetime.fromtimestamp(self.sunset)
+        if when < datetime.now():
+            offset += timedelta(days=1)
+        when += offset
         scheduler.add_job(
             function,
             trigger = 'date',
-            args = [args],
-            run_date=datetime.fromtimestamp(self.sunset) + offset)
+            args = [args, flag_master_switch],
+            run_date=when)
+        self.logger.error("Sunset scheduled: %s", when.strftime('%Y-%m-%d %H:%M'))
 
     def __get_night_timestamps(self, x_axis_timestamps, days=0):
         """Project sunset and sunrise times few days forward
@@ -95,7 +99,7 @@ class OpenWeatherMap(JSONFromAPI):
                     sunrise = x_axis_timestamps[0]
 
             night_timestamps.append([sunset, sunrise])
-            self.logger.debug(
+            self.logger.info(
                 "sunset: %s; sunrise: %s",
                 datetime.fromtimestamp(sunset).strftime('%Y-%m-%d %H:%M'),
                 datetime.fromtimestamp(sunrise).strftime('%Y-%m-%d %H:%M')
@@ -126,10 +130,10 @@ class OpenWeatherMap(JSONFromAPI):
             producer_opw: multiprocessing.connection.Connection) -> bool:
         """Update and send forecast data"""
         ret = self.__update()
-        self.logger.warning("opw: sending")
         producer_opw.send({
             'plot': self.plot()
         })
+        self.logger.info("sent data via pipe")
         return ret
 
     def plot(self, x_resolution=420, y_resolution=200, days=0):
@@ -154,7 +158,7 @@ class OpenWeatherMap(JSONFromAPI):
         y_axis_temperature = []
         y_axis_precipitation = []
         for timestamp in self.json['list']:
-            self.logger.debug(
+            self.logger.info(
                 "timestamp: %s",
                 datetime.fromtimestamp(timestamp['dt']).strftime('%Y-%m-%d %H:%M'))
             x_axis_timestamps.append(timestamp['dt'])
@@ -222,5 +226,5 @@ class OpenWeatherMap(JSONFromAPI):
 
         #clean up
         plot.close(temp_n_percip_plot)
-        self.logger.debug('plot generated ')
+        self.logger.info('plot generated ')
         return forecast_plot_image

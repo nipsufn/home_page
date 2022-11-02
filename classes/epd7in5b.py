@@ -123,7 +123,7 @@ class Epd:
         self.logger = logging.getLogger(type(self).__name__)
         self.reset_pin = epdconfig.RST_PIN
         self.dc_pin = epdconfig.DC_PIN
-        self.logger.trace('Class initialized')
+        self.logger.debug('Class initialized')
 
     # Hardware reset
     def reset(self):
@@ -143,10 +143,10 @@ class Epd:
         epdconfig.spi_writebyte([data])
 
     def wait_until_idle(self):
-        self.logger.warning("e-Paper busy")
+        self.logger.info("e-Paper busy")
         while epdconfig.digital_read() == 0:     # 0: busy, 1: idle
             epdconfig.delay_ms(100)
-        self.logger.warning("e-Paper busy release")
+        self.logger.info("e-Paper busy release")
 
     def init(self):
         if epdconfig.module_init() != 0:

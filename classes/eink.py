@@ -17,7 +17,8 @@ __logger = logging.getLogger(__name__)
 def update_eink(consumer_cro: multiprocessing.connection.Connection,
         consumer_opw: multiprocessing.connection.Connection,
         consumer_arl: multiprocessing.connection.Connection,
-        producer_tcplog: multiprocessing.connection.Connection) -> None:
+        producer_tcplog: multiprocessing.connection.Connection,
+        flag_radio_playing: multiprocessing.sharedctypes.SynchronizedBase) -> None:
     """update e-ink display"""
     epd = Epd()
     epd.init()
@@ -25,13 +26,13 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
     startup_lock = True
     while True:
         if startup_lock:
-            __logger.debug("update_eink: waiting for cro")
+            __logger.info("update_eink: waiting for cro")
             while not consumer_cro.poll():
                 pass
-            __logger.debug("update_eink: waiting for arl")
+            __logger.info("update_eink: waiting for arl")
             while not consumer_arl.poll():
                 pass
-            __logger.debug("update_eink: waiting for opw")
+            __logger.info("update_eink: waiting for opw")
             while not consumer_opw.poll():
                 pass
             startup_lock = False
@@ -44,12 +45,12 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
                 cro_jazz = consumer_cro.recv()
             if cro_jazz['updated']:
                 update_display = True
-            __logger.debug('from pipe: %s', cro_jazz)
+            __logger.info('from pipe: %s', cro_jazz)
         # those are updated infrequently, no point spamming APIs
         if consumer_arl.poll():
             # here assing cro data
             smog_airly = consumer_arl.recv()
-            __logger.debug('from pipe: %s', smog_airly)
+            __logger.info('from pipe: %s', smog_airly)
             if smog_airly['updated']:
                 update_display = True
             if smog_airly['updated']:
@@ -62,13 +63,13 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
                         "humi_outside": smog_airly['humi'],
                         "press_outside": smog_airly['press']
                     }) + '\n'
-                __logger.debug("update_eink: producing")
+                __logger.info("update_eink: producing")
                 producer_tcplog.send(smog_json)
             update_display = True
 
         if consumer_opw.poll():
             forecast_plot_image = consumer_opw.recv()['plot']
-            __logger.debug('from pipe: image')
+            __logger.info('from pipe: image')
             update_display = True
 
         if update_display:

@@ -31,7 +31,7 @@ class Airly(JSONFromAPI):
         self.humi = 50.0
         self._updated = False
         self.__update()
-        self.logger.trace('Class initialized')
+        self.logger.debug('Class initialized')
 
     def __update(self) -> bool:
         """Update smog data"""
@@ -50,7 +50,7 @@ class Airly(JSONFromAPI):
                         continue
                     if tmp_json['current']['indexes'][0]['value'] is None:
                         continue
-                    self.logger.debug(location)
+                    self.logger.info(location)
                     self.pm100 = tmp_json['current']['values'][2]['value']
                     self.pm025 = tmp_json['current']['values'][1]['value']
                     self.pm001 = tmp_json['current']['values'][0]['value']
@@ -84,14 +84,13 @@ class Airly(JSONFromAPI):
                 #                retry = True
                 #                continue
 
-        self.logger.warning('update not successful')
+        self.logger.error('update not successful')
         return False
 
     def update(self, producer_arl: multiprocessing.connection.Connection) -> bool:
         """Update and send smog data"""
         ret = self.__update()
         if ret:
-            self.logger.warning("arl: sending")
             producer_arl.send({
                 'pm100': self.pm100,
                 'pm025': self.pm025,
@@ -104,6 +103,7 @@ class Airly(JSONFromAPI):
                 'updated': self._updated,
                 'is_air_ok': self.is_air_ok()
             })
+            self.logger.info("sent data via pipe")
             return True
         return False
 
@@ -114,11 +114,11 @@ class Airly(JSONFromAPI):
         """
         status = True
         if self.pm100 > self.pm100_limit:
-            self.logger.debug("%s: PM10 > PM10_norm",
+            self.logger.info("%s: PM10 > PM10_norm",
                               str(inspect.currentframe().f_back.f_lineno))
             status = False
         if self.pm025 > self.pm025_limit:
-            self.logger.debug("%s: PM2.5 > PM2.5_norm",
+            self.logger.info("%s: PM2.5 > PM2.5_norm",
                               str(inspect.currentframe().f_back.f_lineno))
             status = False
         return status

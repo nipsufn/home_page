@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 import logging
 import logging.handlers
 import multiprocessing
+from multiprocessing.sharedctypes import SynchronizedBase
 import sys
 import json
 
-#from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.schedulers.background import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 #from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from flask import Flask, Response, render_template, request
 #from flask_sqlalchemy import SQLAlchemy
@@ -28,13 +28,9 @@ from classes import eink
 app = Flask(__name__)
 
 def prepare_logger(args) -> None:
-    """create global logger, add trace loglevel"""
+    """create global logger"""
 
-    logging.TRACE = 5
-    logging.addLevelName(5, "TRACE")
-    logging.trace = lambda *args: logging.log(5, *args)
-    logging.Logger.trace = lambda self, *args: logging.log(5, *args)
-    level = logging.INFO
+    level = logging.WARNING
 
     level_str_to_int = {
         'critical': logging.CRITICAL,
@@ -44,14 +40,13 @@ def prepare_logger(args) -> None:
         'warning': logging.WARNING,
         'info': logging.INFO,
         'debug': logging.DEBUG,
-        'trace': logging.TRACE,
     }
     if args.loglevel:
         level=level_str_to_int[args.loglevel]
     if args.trace:
-        level = logging.TRACE
+        level = logging.DEBUG
     if args.debug:
-        level=logging.DEBUG
+        level=logging.INFO
 
     logging.basicConfig(format='[%(asctime)s] %(levelname)s - %(processName)s/%(threadName)s - '
         '%(pathname)s:%(lineno)d - %(name)s - %(message)s', level=level)
@@ -81,7 +76,7 @@ def mpd(mpd_request: dict,) -> None:
         mpd_client.add('https://rozhlas.stream/jazz_aac_128.aac')
         mpd_client.play()
     if mpd_request.args['mpd'] == 'volume' and 'volume' in mpd_request.args:
-        app.logger.warning("trying to set volume: %s",
+        app.logger.error("trying to set volume: %s",
             mpd_request.args['volume'])
         mpd_client.setvol(mpd_request.args['volume'])
 
@@ -90,7 +85,7 @@ def index() -> str:
     """Webpage with advanced controls"""
     mpd_client = musicpd.MPDClient()
     mpd_client.connect()
-    app.logger.warning("index form: %s", json.dumps(request.form))
+    app.logger.error("index form: %s", json.dumps(request.form))
     if 'volume' in request.form:
         mpd_client.setvol(request.form['volume'])
     return render_template("index.html.j2",
@@ -101,7 +96,7 @@ async def api() -> Response:
     """Handle API calls"""
     response = {}
     if request.method == 'POST':
-        app.logger.warning(json.dumps(request.args))
+        app.logger.error(json.dumps(request.args))
         if 'bulb' in request.args:
             wrap_in_process(wizbulb.set_bulb_sync, request, app.config)
         if 'mpd' in request.args:
@@ -122,8 +117,9 @@ async def api() -> Response:
     return response
 
 #scheduled job
-def add_alarms(sched: BlockingScheduler,
-        consumer_wakeup_int: multiprocessing.connection.Connection) -> None:
+def add_alarms(sched: BackgroundScheduler,
+        consumer_wakeup_int: multiprocessing.connection.Connection,
+        flag_master_switch: SynchronizedBase) -> None:
     """Initialize scheduler with alarms from config"""
     for alarm in app.config['ALARMS']:
 
@@ -136,14 +132,14 @@ def add_alarms(sched: BlockingScheduler,
         sched.add_job(
             routines.wakeup,
             trigger = 'cron',
-            args = [consumer_wakeup_int, app.config],
+            args = [consumer_wakeup_int, app.config, flag_master_switch],
             minute=minute,
             hour=hour,
             day=day,
             month=month,
             day_of_week=day_of_week)
 
-        app.logger.warning("Alarm scheduled: %s", json.dumps(alarm))
+        app.logger.error("Alarm scheduled: %s", json.dumps(alarm))
 
 #process
 def tcplog(tcplog_consumer: multiprocessing.connection.Connection,
@@ -155,9 +151,11 @@ def tcplog(tcplog_consumer: multiprocessing.connection.Connection,
     for handler in log.handlers:
         log.removeHandler(handler)
     log.addHandler(log_handler)
+    log.propagate = False
+    app.logger.warning("tcplog: starting loop")
     while True:
         app.logger.info("tcplog: consuming")
-        log.warning(tcplog_consumer.recv())
+        log.error(tcplog_consumer.recv())
 
 #process
 def serial_to_log(tcplog_producer:
@@ -165,6 +163,7 @@ def serial_to_log(tcplog_producer:
     """Read serial and send to logger"""
     ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=90)
     ser.flushInput()
+    app.logger.warning("serial_to_log: starting loop")
     while True:
         try:
             ser_out = ser.readline()
@@ -172,7 +171,7 @@ def serial_to_log(tcplog_producer:
             tcplog_producer.send(ser_out.decode("utf-8"))
         except serial.serialutil.SerialException:
             exc_type, value, _ = sys.exc_info()
-            app.logger.warning("%s: %s", exc_type.__name__, value)
+            app.logger.debug("Serial error: %s: %s", exc_type.__name__, value)
 
 def main():
     """main wrapper"""
@@ -197,10 +196,10 @@ def main():
         )
 
     app.config.from_file("config.json", json.load)
-    multiproc_logger = multiprocessing.get_logger()
-    for handler in multiproc_logger.handlers:
-        multiproc_logger.removeHandler(handler)
-    multiproc_logger.addHandler(log_handler)
+    #multiproc_logger = multiprocessing.get_logger()
+    #for handler in multiproc_logger.handlers:
+    #    multiproc_logger.removeHandler(handler)
+    #multiproc_logger.addHandler(log_handler)
 
     app.cro_jazz = CRoJazz()
     app.open_weather = OpenWeatherMap(
@@ -212,6 +211,8 @@ def main():
         app.config['FORECAST']['airlyToken']
         )
 
+    app.flag_radio_playing = multiprocessing.Value('i', 0)
+    app.flag_master_switch = multiprocessing.Value('i', 1)
     consumer_cro, producer_cro = multiprocessing.Pipe()
     consumer_opw, producer_opw = multiprocessing.Pipe()
     consumer_arl, producer_arl = multiprocessing.Pipe()
@@ -220,8 +221,7 @@ def main():
 
     #APP.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
     #DB = SQLAlchemy(APP)
-    #scheduler = BackgroundScheduler()
-    scheduler = BlockingScheduler()
+    scheduler = BackgroundScheduler()
     scheduler_start = datetime.now()+timedelta(seconds=30)
     scheduler.add_job(
         app.cro_jazz.update,
@@ -244,14 +244,27 @@ def main():
     scheduler.add_job(
         app.open_weather.schedule_at_sunset,
         trigger = 'cron',
-        args = [scheduler, routines.sunset, app.config],
+        args = [
+            scheduler,
+            routines.sunset,
+            app.config,
+            app.flag_master_switch,
+            timedelta(minutes=-30)
+            ],
         hour="12")
 
-    add_alarms(scheduler, consumer_wakeup_int)
+    add_alarms(scheduler, consumer_wakeup_int, app.flag_master_switch)
 
     wrap_in_process(tcplog, consumer_tcplog, '127.0.0.1', 5170)
     wrap_in_process(serial_to_log, producer_tcplog)
-    wrap_in_process(eink.update_eink, consumer_cro, consumer_opw, consumer_arl, producer_tcplog)
+    wrap_in_process(
+        eink.update_eink,
+        consumer_cro,
+        consumer_opw,
+        consumer_arl,
+        producer_tcplog,
+        app.flag_radio_playing
+        )
 
     scheduler.start()
     app.run()
