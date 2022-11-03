@@ -20,13 +20,16 @@ def set_bulb_sync(bulb_request: dict, config: dict) -> None:
 
 async def set_bulb(bulb_request: dict, config: dict) -> None:
     """handle bulb-related requests"""
-    __logger.error("setting the goddamn bulbs")
     bulbs = []
-    for bulb_ip in bulb_request.args.getlist('bulb'):
+    bulb_req_list = bulb_request.args.getlist('bulb')
+    for bulb_ip in bulb_req_list:
         for bulb in bulb_ip.split(','):
-            bulbs.append(bulb)
-    if len(bulbs) == 1 and bulbs[0] == 'all':
-        bulbs = config['LIGHTBULBS'].keys()
+            if bulb_ip == "all" and len(bulb_req_list) == 1:
+                bulbs = config['LIGHTBULBS'].keys()
+            elif bulb not in config['LIGHTBULBS']:
+                __logger.error("no such bulb: %s", bulb)
+            else:
+                bulbs.append(bulb.lower())
     for bulb_ip in bulbs:
         lightbulb = wizlight(socket.gethostbyname(config['LIGHTBULBS'][bulb_ip]))
         if bulb_request.args['op'] == 'off':
@@ -35,6 +38,7 @@ async def set_bulb(bulb_request: dict, config: dict) -> None:
 
         if bulb_request.args['op'] == 'on' \
             and 'brightness' in bulb_request.args:
+            __logger.error("op on")
             pilot = PilotBuilder()
             if 'temperature' in bulb_request.args:
                 pilot = PilotBuilder(

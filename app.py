@@ -251,12 +251,14 @@ def main():
             app.flag_master_switch,
             timedelta(minutes=-30)
             ],
-        hour="12")
+        hour="15")
 
     add_alarms(scheduler, consumer_wakeup_int, app.flag_master_switch)
 
     wrap_in_process(tcplog, consumer_tcplog, '127.0.0.1', 5170)
     wrap_in_process(serial_to_log, producer_tcplog)
+    #polling bulp with ping is unreliable :/
+    #wrap_in_process(routines.bulbs_state, app.config, app.flag_master_switch)
     wrap_in_process(
         eink.update_eink,
         consumer_cro,

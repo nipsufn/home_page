@@ -78,7 +78,7 @@ def update_eink(consumer_cro: multiprocessing.connection.Connection,
             framebuffer_font_small = ImageFont.truetype(
                 'SourceCodePro-Regular.ttf', 12)
 
-            framebuffer_image = Image.new('RGB', (385, 640), (0xFF, 0xFF, 0xFF))
+            framebuffer_image = Image.new('RGB', (384, 640), (0xFF, 0xFF, 0xFF))
             framebuffer_image.paste(forecast_plot_image, (-20, 430))
             framebuffer_draw = ImageDraw.Draw(framebuffer_image)
             framebuffer_draw.text((10, 0),

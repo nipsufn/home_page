@@ -205,6 +205,8 @@ class Epd:
         """Display image"""
         if image.height != self.Height or image.width != self.Width:
             self.logger.error("cannot display image of incorrect size")
+            self.logger.info("%s != %s or %s != %s",
+                image.height, self.Height, image.width, self.Width)
             return
         self._send_command(self.DataStartTransmission1)
         imagedata = iter(list(image.getdata()))

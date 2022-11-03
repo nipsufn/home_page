@@ -6,22 +6,34 @@ import time
 import logging
 import multiprocessing
 import socket
+import subprocess
 from typing import List
 import musicpd
 from pywizlight import wizlight, PilotBuilder, exceptions
 
 __logger = logging.getLogger(__name__)
 
-async def __lightbulb_helper(lightbulbs: List[wizlight], brightness: int, colortemp: int) -> None:
+async def __lightbulb_on_helper(lightbulbs: List[wizlight],
+        brightness: int, colortemp: int) -> None:
     for lightbulb in lightbulbs:
         try:
             await lightbulb.turn_on(
                 PilotBuilder(
                     brightness=brightness,
                     colortemp=colortemp))
-
         except exceptions.WizLightTimeOutError:
-            __logger.error("bulb timed out")
+            __logger.error("bulb timed out: %s", lightbulb.ip)
+        except exceptions.WizLightConnectionError:
+            __logger.error("bulb connection error: %s", lightbulb.ip)
+
+async def __lightbulb_off_helper(lightbulbs: List[wizlight]) -> None:
+    for lightbulb in lightbulbs:
+        try:
+            await lightbulb.turn_off()
+        except exceptions.WizLightTimeOutError:
+            __logger.error("bulb timed out: %s", lightbulb.ip)
+        except exceptions.WizLightConnectionError:
+            __logger.error("bulb connection error: %s", lightbulb.ip)
 
 def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
         config: dict, flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase,
@@ -29,7 +41,7 @@ def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
     """Wakeup procedure"""
     __logger.error("Wakeup routine started")
 
-    if not bool(flag_master_switch):
+    if not bool(flag_master_switch.value):
         __logger.error("Wakeup routine skipped - master switch off")
         return
 
@@ -68,7 +80,7 @@ def wakeup(consumer_wakeup_int: multiprocessing.connection.Connection,
         temp=int((i * (temp_stop - temp_start) ) / steps + temp_start)
         __logger.info("brightness: %i; temperature: %i", bright, temp)
         loop.run_until_complete(
-            __lightbulb_helper(lightbulbs, bright, temp)
+            __lightbulb_on_helper(lightbulbs, bright, temp)
         )
         time.sleep(interval)
     __logger.error("Wakeup routine finished")
@@ -78,7 +90,7 @@ def sunset(config: dict, flag_master_switch: multiprocessing.sharedctypes.Synchr
     """Sunset procedure"""
     __logger.error("Sunset routine started")
 
-    if not bool(flag_master_switch):
+    if not bool(flag_master_switch.value):
         __logger.error("Wakeup routine skipped - master switch off")
         return
 
@@ -97,11 +109,67 @@ def sunset(config: dict, flag_master_switch: multiprocessing.sharedctypes.Synchr
         temp=int((i * (temp_stop - temp_start) ) / steps + temp_start)
         __logger.info("brightness: %i; temperature: %i", bright, temp)
         loop.run_until_complete(
-            __lightbulb_helper(lightbulbs, bright, temp)
+            __lightbulb_on_helper(lightbulbs, bright, temp)
         )
         time.sleep(interval)
     __logger.error("Sunset routine finished")
 
 #process
-#def bulbs_state(config: dict) -> None:
-#    __lightbulb_helper(lightbulbs, bright, temp)
+def bulbs_state(config: dict,
+        flag_master_switch: multiprocessing.sharedctypes.SynchronizedBase) -> None:
+    """Process checking and reacting to bulb state"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    lightbulbs = [wizlight(socket.gethostbyname(ip)) for ip in config['LIGHTBULBS'].values()]
+    old_response = 0
+
+    mpd_client = musicpd.MPDClient()
+    mpd_client.connect()
+    old_volume = mpd_client.status()['volume']
+
+    duration = 3
+    steps = 7
+    interval = duration / steps
+
+    while True:
+        response = subprocess.run(
+            ["ping", "-c 1", "-W 2", config['LIGHTBULBS']['corridor']],
+            capture_output=True, check=False).returncode
+
+        if response == 0 and old_response != 0:
+            __logger.error("Master bulb changed state to ON")
+            flag_master_switch.value = 1
+            loop.run_until_complete(
+                __lightbulb_on_helper(lightbulbs, 255, 2700)
+            )
+
+            for i in range(steps):
+                volume=int((i*int(old_volume))/steps)
+                try:
+                    mpd_client.setvol(volume)
+                except musicpd.ConnectionError:
+                    __logger.error("musicpd.ConnectionError -volume: %i", volume)
+                __logger.info("volume: %i", volume)
+                time.sleep(interval)
+        if response != 0 and old_response == 0:
+            __logger.error("Master bulb changed state to OFF")
+            flag_master_switch.value = 0
+            loop.run_until_complete(
+                __lightbulb_off_helper(lightbulbs)
+            )
+
+            mpd_client = musicpd.MPDClient()
+            mpd_client.connect()
+            old_volume = mpd_client.status()['volume']
+
+            for i in range(steps):
+                volume=int(float(old_volume) - (i*int(old_volume))/steps)
+                try:
+                    mpd_client.setvol(volume)
+                except musicpd.ConnectionError:
+                    __logger.error("musicpd.ConnectionError -volume: %i", volume)
+                __logger.info("volume: %i", volume)
+                time.sleep(interval)
+
+        old_response = response
+        time.sleep(1)
